@@ -29,6 +29,16 @@ pageshelf url <session> [path] [--json] [--host HOST --port PORT | --tailscale |
 
 Storage defaults to `~/.local/share/pageshelf`; override with `--data-dir` or `PAGESHELF_DATA_DIR`.
 
+## Agent skill
+
+This repository ships a Hermes-style agent skill at:
+
+```text
+skills/devops/pageshelf/SKILL.md
+```
+
+Install or copy that skill into an agent skill directory when you want agents to know the preferred pageshelf workflow: create/publish HTML artifacts, use Tailscale URLs, avoid leaking secrets, and return short chat summaries instead of long Markdown dumps.
+
 ## Security model
 
 - Server binds to `127.0.0.1` by default.
