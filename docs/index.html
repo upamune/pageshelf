@@ -146,9 +146,9 @@
       margin: 0;
       max-width: 12ch;
       color: var(--primary);
-      font-size: clamp(64px, 13vw, 158px);
-      line-height: 0.88;
-      letter-spacing: -0.075em;
+      font-size: clamp(58px, 11vw, 136px);
+      line-height: 0.96;
+      letter-spacing: -0.045em;
       font-weight: 900;
     }
 
@@ -157,8 +157,8 @@
       margin: 26px 0 0;
       color: var(--muted);
       font-size: clamp(18px, 2vw, 23px);
-      line-height: 1.55;
-      letter-spacing: -0.015em;
+      line-height: 1.68;
+      letter-spacing: -0.004em;
     }
 
     .actions {
@@ -294,8 +294,8 @@
     .section h2 {
       margin: 0 0 18px;
       font-size: clamp(30px, 5vw, 56px);
-      line-height: 1.02;
-      letter-spacing: -0.055em;
+      line-height: 1.1;
+      letter-spacing: -0.032em;
       font-weight: 900;
     }
 
@@ -304,8 +304,8 @@
       margin: 0 0 28px;
       color: var(--muted);
       font-size: 18px;
-      line-height: 1.62;
-      letter-spacing: -0.01em;
+      line-height: 1.74;
+      letter-spacing: -0.002em;
     }
 
     .grid {
@@ -335,18 +335,28 @@
       font-weight: 900;
     }
 
+    .feature .icon svg {
+      width: 23px;
+      height: 23px;
+      stroke: currentColor;
+      stroke-width: 2.25;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      fill: none;
+    }
+
     .feature h3 {
       margin: 0 0 10px;
       font-size: 18px;
-      line-height: 1.22;
-      letter-spacing: -0.02em;
+      line-height: 1.3;
+      letter-spacing: -0.008em;
     }
 
     .feature p {
       margin: 0;
       color: var(--muted);
       font-size: 14px;
-      line-height: 1.62;
+      line-height: 1.72;
     }
 
     .code-panel {
@@ -545,7 +555,7 @@
           <p>Store reports, PR explainers, diagrams, annotated diffs, and interactive review pages as real browser-readable files.</p>
         </article>
         <article class="feature">
-          <div class="icon">◌</div>
+          <div class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 11V8a5 5 0 0 1 10 0v3"/><rect x="5" y="11" width="14" height="9" rx="3"/><path d="M12 15v2"/></svg></div>
           <h3>Private sharing</h3>
           <p>Localhost by default, Tailscale when needed, and tokenized URLs so the shelf does not become a public hosting accident.</p>
         </article>
