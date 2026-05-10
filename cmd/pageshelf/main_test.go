@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/serizawa/pageshelf/internal/store"
+	pageshelfskill "github.com/serizawa/pageshelf/skills/pageshelf"
 )
 
 const testSecret = "ghp_123456789012345678901234567890123456"
@@ -197,6 +198,88 @@ func TestPutSecretScanBlocksStdin(t *testing.T) {
 	_, err = (&PutCmd{Name: "stdin.txt", Stdin: true}).collectPutItems()
 	if err == nil || !strings.Contains(err.Error(), "secret scan blocked") {
 		t.Fatalf("err = %v, want stdin secret blocked", err)
+	}
+}
+
+func TestSkillShowCommandPrintsBundledSkill(t *testing.T) {
+	oldStdout := os.Stdout
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stdout = w
+	err = (&SkillShowCmd{}).Run(&Ctx{})
+	if closeErr := w.Close(); closeErr != nil {
+		t.Fatal(closeErr)
+	}
+	os.Stdout = oldStdout
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := io.ReadAll(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(b) != string(pageshelfskill.Content()) {
+		t.Fatalf("skill show output did not match bundled skill")
+	}
+}
+
+func TestSkillHelpCommandPrintsHelp(t *testing.T) {
+	oldStdout := os.Stdout
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stdout = w
+	err = (&SkillHelpCmd{}).Run(&Ctx{})
+	if closeErr := w.Close(); closeErr != nil {
+		t.Fatal(closeErr)
+	}
+	os.Stdout = oldStdout
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := io.ReadAll(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := string(b)
+	if !strings.Contains(out, "Usage: pageshelf skill <command>") || !strings.Contains(out, "pageshelf skill show") {
+		t.Fatalf("skill help output = %q", out)
+	}
+}
+
+func TestSkillInstallCommandWritesBundledSkill(t *testing.T) {
+	dir := t.TempDir()
+	oldStdout := os.Stdout
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stdout = w
+	err = (&SkillInstallCmd{Dir: dir}).Run(&Ctx{})
+	if closeErr := w.Close(); closeErr != nil {
+		t.Fatal(closeErr)
+	}
+	os.Stdout = oldStdout
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := io.ReadAll(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := strings.TrimSpace(string(b))
+	if path != filepath.Join(dir, "SKILL.md") {
+		t.Fatalf("install output path = %q", path)
+	}
+	written, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(written) != string(pageshelfskill.Content()) {
+		t.Fatalf("installed skill did not match bundled skill")
 	}
 }
 

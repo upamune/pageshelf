@@ -18,6 +18,7 @@ import (
 	"github.com/serizawa/pageshelf/internal/server"
 	"github.com/serizawa/pageshelf/internal/store"
 	"github.com/serizawa/pageshelf/internal/tailscale"
+	pageshelfskill "github.com/serizawa/pageshelf/skills/pageshelf"
 )
 
 type CLI struct {
@@ -29,6 +30,7 @@ type CLI struct {
 	Files   FilesCmd   `cmd:""`
 	URL     URLCmd     `cmd:""`
 	GC      GCCmd      `cmd:"" help:"Remove expired sessions."`
+	Skill   SkillCmd   `cmd:"" help:"Print or install the bundled agent skill."`
 	Version VersionCmd `cmd:"" help:"Print version information."`
 }
 type (
@@ -110,6 +112,20 @@ type GCCmd struct {
 	JSON   bool
 }
 
+type SkillCmd struct {
+	Help    SkillHelpCmd    `cmd:"" default:"1" help:"Show bundled skill command help."`
+	Show    SkillShowCmd    `cmd:"" help:"Print the bundled Pageshelf agent skill."`
+	Install SkillInstallCmd `cmd:"" help:"Write the bundled Pageshelf agent skill to a directory."`
+}
+
+type SkillHelpCmd struct{}
+
+type SkillShowCmd struct{}
+
+type SkillInstallCmd struct {
+	Dir string `arg:"" help:"Destination directory. Writes SKILL.md inside it."`
+}
+
 type VersionCmd struct{}
 
 func main() {
@@ -132,6 +148,40 @@ func main() {
 	k.FatalIfErrorf(err)
 }
 func printJSON(v any) { b, _ := json.MarshalIndent(v, "", "  "); fmt.Println(string(b)) }
+
+func printSkillHelp() {
+	fmt.Print(strings.Join([]string{
+		"Usage: pageshelf skill <command>",
+		"",
+		"Commands:",
+		"  pageshelf skill show           print the bundled Pageshelf agent skill",
+		"  pageshelf skill install <dir>  write SKILL.md into a skill directory",
+		"  pageshelf skill help           show this help",
+		"",
+	}, "\n"))
+}
+
+func (c *SkillHelpCmd) Run(_ *Ctx) error {
+	printSkillHelp()
+	return nil
+}
+
+func (c *SkillShowCmd) Run(_ *Ctx) error {
+	_, err := os.Stdout.Write(pageshelfskill.Content())
+	return err
+}
+
+func (c *SkillInstallCmd) Run(_ *Ctx) error {
+	if err := os.MkdirAll(c.Dir, 0o700); err != nil {
+		return fmt.Errorf("create skill directory: %w", err)
+	}
+	path := filepath.Join(c.Dir, "SKILL.md")
+	if err := os.WriteFile(path, pageshelfskill.Content(), 0o600); err != nil {
+		return fmt.Errorf("write skill: %w", err)
+	}
+	fmt.Println(path)
+	return nil
+}
 
 func (c *VersionCmd) Run(_ *Ctx) error {
 	fmt.Println(store.Version)
