@@ -218,16 +218,7 @@ Or start Hermes with the skill preloaded:
 hermes -s pageshelf
 ```
 
-### Recommended Hermes prompt
-
-```text
-Create the full plan as a polished HTML artifact using Pageshelf.
-Use DESIGN.md if this repo has one.
-Publish it with pageshelf put --tailscale.
-Reply in chat with only the Pageshelf URL and a 3-bullet summary.
-```
-
-Good fit:
+### Good Hermes use cases
 
 - implementation plans with diagrams and code snippets
 - PR explainers with annotated diffs
