@@ -1,0 +1,6 @@
+[tagpr]
+	releaseBranch = main
+	versionFile = internal/store/store.go
+	vPrefix = true
+	changelog = true
+	release = false

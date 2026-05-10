@@ -1,0 +1,53 @@
+version: 2
+
+project_name: pageshelf
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: pageshelf
+    main: ./cmd/pageshelf
+    binary: pageshelf
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w -X github.com/serizawa/pageshelf/internal/store.Version={{ .Version }}
+
+archives:
+  - id: pageshelf
+    ids:
+      - pageshelf
+    formats:
+      - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    files:
+      - LICENSE
+      - README.md
+
+checksum:
+  name_template: checksums.txt
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  use: github
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+      - "^ci:"
