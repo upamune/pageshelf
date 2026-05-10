@@ -1,45 +1,48 @@
-<p align="center">
-  <img src="docs/assets/pageshelf-logo.png" alt="pageshelf logo" width="640">
-</p>
-
 # pageshelf
 
-A tiny, security-first shelf for agent-generated HTML artifacts.
+Pageshelf is a tiny, security-first artifact shelf for agent-generated HTML reports, plans, PR explainers, diagrams, annotated diffs, and interactive review pages.
 
-Pageshelf is a Go CLI + static web server for the stuff that does not fit well in chat: long plans, research reports, PR explainers, diagrams, annotated diffs, and small interactive review pages. It is built for local-first agent workflows and private Tailscale sharing, not for public hosting.
+[![CI status](https://img.shields.io/github/actions/workflow/status/upamune/pageshelf/ci.yml?branch=main&style=for-the-badge&label=CI)](https://github.com/upamune/pageshelf/actions/workflows/ci.yml?branch=main)
+[![Latest release](https://img.shields.io/github/v/release/upamune/pageshelf?style=for-the-badge)](https://github.com/upamune/pageshelf/releases)
+[![Go version](https://img.shields.io/github/go-mod/go-version/upamune/pageshelf?style=for-the-badge)](go.mod)
+[![MIT License](https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge)](LICENSE)
 
-Artifact URLs intentionally use short `/a/...` paths instead of exposing the product name:
+- local-first Go CLI plus static web server
+- tokenized `/a/...` artifact URLs with hashed tokens in storage
+- default localhost bind, private Tailscale sharing, and guarded public binds
+- Markdown-to-HTML publishing, multi-file sessions, TTL metadata, and GC
+- default-on Gitleaks scanning before artifacts are stored
+- bundled agent skill and `DESIGN.md` for consistent agent-authored outputs
 
-```text
-http://100.x.y.z:8787/a/20260510-0924-artifact-7k3p/index.html?t=psr_xxx
+<table>
+ <tr>
+   <td width="58%" align="center">
+     <img width="640" alt="Pageshelf logo" src="docs/assets/pageshelf-logo.png" />
+     <br />
+     <sub>Kawaii shelf-keeper mascot for secure HTML artifact sharing</sub>
+   </td>
+   <td width="42%">
+
+```bash
+pageshelf serve --tailscale
+pageshelf put --tailscale report.html
 ```
 
-## Why
+```text
+session: 20260510-0924-artifact-7k3p
+url: http://100.x.y.z:8787/a/.../report.html?t=psr_xxx
+```
 
-Markdown is portable, but it gets painful once an agent output needs:
-
-- dense tables and visual hierarchy
-- SVG diagrams or architecture sketches
-- annotated code snippets and diffs
-- tabs, sliders, copy buttons, or throwaway editors
-- mobile-readable long-form reports
-
-Pageshelf lets an agent generate a real HTML artifact, store it in a session, and hand back a private URL instead of dumping a giant Markdown wall into Telegram, Slack, or a PR comment.
+   </td>
+ </tr>
+</table>
 
 ## Install
 
 ### With mise
 
-If you use [mise](https://mise.jdx.dev/), install the latest GitHub Release binary globally:
-
-```sh
+```bash
 mise use -g github:upamune/pageshelf@latest
-```
-
-Verify it:
-
-```sh
-pageshelf version
 ```
 
 ### From release binaries
@@ -48,34 +51,39 @@ Download a prebuilt binary for Linux, macOS, or Windows from the [latest GitHub 
 
 ### Build from source
 
-```sh
+```bash
 go build -o pageshelf ./cmd/pageshelf
 ```
 
-Storage defaults to:
+Requirements:
 
-```text
-~/.local/share/pageshelf
-```
-
-Override it with either:
-
-```sh
-pageshelf --data-dir ./tmp/pageshelf ...
-PAGESHELF_DATA_DIR=./tmp/pageshelf pageshelf ...
-```
+- Go 1.25+ to build from source
+- Tailscale recommended for private network sharing
+- Gitleaks is embedded through the Go dependency used by Pageshelf secret scanning
 
 ## Quick start
 
-Start the server locally:
+```bash
+pageshelf           # show help
+pageshelf version   # print the installed version
+pageshelf --version # same, for script-friendly checks
+```
 
-```sh
+### Serve locally
+
+```bash
 pageshelf serve
 ```
 
-Publish an HTML file:
+By default, Pageshelf binds to:
 
-```sh
+```text
+127.0.0.1:8787
+```
+
+### Publish an artifact
+
+```bash
 pageshelf put index.html
 ```
 
@@ -86,74 +94,145 @@ session: 20260510-0924-artifact-7k3p
 url: http://127.0.0.1:8787/a/20260510-0924-artifact-7k3p/index.html?t=psr_xxx
 ```
 
-For private tailnet sharing:
+### Share on a private tailnet
 
-```sh
+```bash
 pageshelf serve --tailscale
 pageshelf put --tailscale index.html
 ```
 
-## Common workflows
+With `--tailscale`, Pageshelf prefers MagicDNS when available and falls back to the raw Tailscale IP.
 
-### Publish a long agent report
+## Working with artifacts
 
-```sh
-pageshelf put --tailscale report.html
-```
+Pageshelf is optimized for the agent output that does not fit well in chat: long Markdown walls, dense tables, diagrams, code-review explainers, and one-off interactive tools.
 
 ### Publish Markdown as HTML
 
 Markdown is rendered to HTML by default:
 
-```sh
+```bash
 pageshelf put research.md
 ```
 
-`research.md` is stored and linked as `research.html`. Use `--raw` only when you want to serve the Markdown file itself:
+`research.md` is stored and linked as `research.html`. Use `--raw` only when you want to serve Markdown itself:
 
-```sh
+```bash
 pageshelf put --raw research.md
 ```
 
 ### Publish from stdin
 
-```sh
+```bash
 cat report.html | pageshelf put --stdin --name index.html --tailscale
 ```
 
 ### Publish inline content
 
-```sh
+```bash
 pageshelf put --content '<!doctype html><h1>Hello</h1>' --name index.html
 ```
 
-### Add files to an existing session
+### Add files to a session
 
-```sh
+```bash
 pageshelf put --session pr-review index.html assets/
 ```
 
 If `--session` is omitted, `put` creates a new session automatically.
 
-### Publish an interactive artifact
+### Publish interactive HTML
 
-Safe mode disables JavaScript. Use `--interactive` when the page intentionally needs local JS for tabs, sliders, copy buttons, animations, or custom editors:
+Safe mode disables JavaScript. Use `--interactive` only when the artifact intentionally needs local JavaScript for tabs, sliders, copy buttons, animations, or custom editors:
 
-```sh
+```bash
 pageshelf put --interactive --tailscale index.html assets/
 ```
 
-### Generate a URL later
+## Working with sessions
 
-```sh
-pageshelf url 20260510-0924-artifact-7k3p
-pageshelf url --tailscale 20260510-0924-artifact-7k3p diagram.html
-pageshelf url --base-url http://agent-box:8787 20260510-0924-artifact-7k3p
+A session is a directory of files plus metadata.
+
+```bash
+pageshelf session create rate-limiter --tag backend --tag explainer --ttl 7d
+pageshelf session info rate-limiter
+pageshelf session meta rate-limiter --tag pr-review --ttl 14d
+pageshelf files rate-limiter
+pageshelf url --tailscale rate-limiter diagram.html
+pageshelf gc --dry-run
 ```
 
-## Commands
+Notes:
 
-```sh
+- Session IDs are safe slugs, usually auto-generated by `put`.
+- New sessions default to `--ttl 14d`.
+- Use `--ttl 0` for no automatic expiry.
+- Use `--expires-at` for a fixed expiry timestamp or date.
+- Tags can be set with `--tag` and replaced later with `session meta`.
+
+## Working with agents
+
+Pageshelf includes a Hermes-style skill for teaching agents the preferred artifact workflow.
+
+```bash
+pageshelf skill              # show skill command help
+pageshelf skill show         # print embedded SKILL.md
+pageshelf skill install dir  # write dir/SKILL.md
+```
+
+A good agent handoff looks like this:
+
+```text
+詳細HTML作った:
+http://100.x.y.z:8787/a/.../index.html?t=psr_xxx
+
+中身:
+- architecture diagram
+- implementation plan
+- risk checklist
+```
+
+Use Pageshelf when an agent should:
+
+- create HTML instead of long Markdown
+- publish artifacts through a private URL
+- keep chat responses short
+- avoid leaking secrets
+- choose safe vs interactive mode intentionally
+
+## Security model
+
+Pageshelf is for local and tailnet artifact sharing, not public hosting.
+
+Key protections:
+
+- tokenized read URLs
+- token hash stored in the manifest
+- local token file stored separately
+- default localhost bind
+- explicit Tailscale bind
+- wildcard bind requires `--unsafe-public-bind`
+- path traversal prevention
+- symlink rejection on input
+- restrictive CSP
+- `Cache-Control: no-store`
+- `X-Content-Type-Options: nosniff`
+- `Referrer-Policy: no-referrer`
+- `X-Frame-Options: DENY`
+
+`pageshelf put` also scans paths, directories, stdin, and `--content` strings with Gitleaks before storing artifacts. If a secret-like value is detected, Pageshelf blocks the write and reports the rule, file, and line without printing the secret value.
+
+Bypass only when you are sure the artifact is safe:
+
+```bash
+pageshelf put --no-secret-scan index.html
+```
+
+Tailnet URLs are still shareable URLs. Do not publish credentials, private keys, production `.env` files, raw tokens, or confidential dumps.
+
+## Command reference
+
+```bash
 pageshelf serve [--tailscale] [--host HOST] [--port PORT] [--unsafe-public-bind]
 
 pageshelf put [--session SESSION]
@@ -176,53 +255,45 @@ pageshelf list [--json]
 pageshelf files <session> [--json]
 pageshelf url <session> [path] [--json] [--host HOST --port PORT | --tailscale | --base-url URL]
 pageshelf gc [--dry-run] [--json]
+pageshelf skill [help|show|install]
+pageshelf version
 ```
 
 Run `pageshelf <command> --help` for command-specific flags.
 
-## Sessions and retention
+## Feature comparison
 
-A session is a directory of files plus metadata.
+| Capability | pageshelf | raw Markdown in chat | GitHub Gist | S3/static hosting |
+| --- | --- | --- | --- | --- |
+| Rich HTML artifacts | ✅ | ❌ | ✅ | ✅ |
+| Local-first storage | ✅ | ❌ | ❌ | ❌ |
+| Private tailnet sharing | ✅ | ❌ | ❌ | ⚠️ |
+| Tokenized artifact URLs | ✅ | ❌ | ❌ | ⚠️ |
+| Default-on secret scanning | ✅ | ❌ | ❌ | ❌ |
+| TTL metadata and GC | ✅ | ❌ | ❌ | ⚠️ |
+| Agent-oriented CLI workflow | ✅ | ⚠️ | ❌ | ❌ |
+| Interactive artifact safe/unsafe switch | ✅ | ❌ | ⚠️ | ⚠️ |
 
-- Session IDs are safe slugs, usually auto-generated by `put`.
-- New sessions default to `--ttl 14d`.
-- Use `--ttl 0` for no automatic expiry.
-- Use `--expires-at` for a fixed expiry timestamp or date.
-- Use `pageshelf gc --dry-run` to preview expired sessions.
-- Use `pageshelf gc` to delete expired sessions.
-- Tags can be set with `--tag` and replaced later with `session meta`.
+Pageshelf is optimized for private agent-to-human artifact review, not long-lived public websites.
 
-Examples:
+## Advanced
 
-```sh
-pageshelf session create rate-limiter --tag backend --tag explainer --ttl 7d
-pageshelf session info rate-limiter
-pageshelf session meta rate-limiter --tag pr-review --ttl 14d
-pageshelf gc --dry-run
+### Storage
+
+Storage defaults to:
+
+```text
+~/.local/share/pageshelf
 ```
 
-## Secret scanning
+Override it with either:
 
-`pageshelf put` scans inputs with Gitleaks by default before storing content.
-
-It scans:
-
-- file paths
-- directories
-- stdin content
-- `--content` strings
-
-If a secret-like value is detected, Pageshelf blocks the write and reports the rule, file, and line without printing the secret value.
-
-Bypass only when you are sure the artifact is safe:
-
-```sh
-pageshelf put --no-secret-scan index.html
+```bash
+pageshelf --data-dir ./tmp/pageshelf ...
+PAGESHELF_DATA_DIR=./tmp/pageshelf pageshelf ...
 ```
 
-Tailnet URLs are still shareable URLs. Do not publish credentials, private keys, production `.env` files, raw tokens, or confidential dumps.
-
-## URL behavior
+### URL behavior
 
 `put` returns the URL for the artifact it actually added:
 
@@ -233,56 +304,47 @@ Tailnet URLs are still shareable URLs. Do not publish credentials, private keys,
 - multi-file uploads prefer `index.html` when present
 - otherwise multi-file uploads return the first added file
 
-URL generation defaults to localhost. Use one of these when the server is elsewhere:
+Generate a URL later with:
 
-```sh
-pageshelf put --host 100.88.12.34 --port 8787 index.html
-pageshelf put --tailscale index.html
-pageshelf put --base-url http://agent-box:8787 index.html
+```bash
+pageshelf url 20260510-0924-artifact-7k3p
+pageshelf url --tailscale 20260510-0924-artifact-7k3p diagram.html
+pageshelf url --base-url http://agent-box:8787 20260510-0924-artifact-7k3p
 ```
 
-With `--tailscale`, Pageshelf prefers MagicDNS when available and falls back to the raw Tailscale IP.
+### Safe vs interactive CSP
 
-## Agent usage
+Default safe mode disables scripts:
 
-This repo includes a Hermes-style skill for teaching agents the preferred workflow:
-
-```text
-skills/pageshelf/SKILL.md
+```http
+script-src 'none'
+connect-src 'none'
 ```
 
-Use that skill when an agent should:
+Interactive mode permits inline JavaScript but still blocks network fetches:
 
-- create HTML instead of long Markdown
-- publish artifacts through Pageshelf
-- use Tailscale URLs for private sharing
-- keep chat responses short
-- avoid leaking secrets
-- choose safe vs interactive mode intentionally
-
-A good agent handoff looks like this:
-
-```text
-詳細HTML作った:
-http://100.x.y.z:8787/a/.../index.html?t=psr_xxx
-
-中身:
-- architecture diagram
-- implementation plan
-- risk checklist
+```http
+script-src 'self' 'unsafe-inline'
+connect-src 'none'
 ```
+
+Use `--interactive` only for artifacts that need browser-side behavior.
+
+### Design system
+
+Pageshelf includes an AI-readable brand and UI specification in [`DESIGN.md`](DESIGN.md). Use it when generating README artwork, landing pages, HTML artifacts, docs screenshots, or product UI.
 
 ## Development
 
 The default Make target is help:
 
-```sh
+```bash
 make
 ```
 
 Targets:
 
-```sh
+```bash
 make fmt    # format with golangci-lint/gofumpt
 make lint   # run golangci-lint, including revive
 make test   # run go test ./...
@@ -291,6 +353,10 @@ make ci     # format check, lint, and tests
 
 GitHub Actions runs the same quality gate on `main`. Workflow actions are SHA-pinned.
 
+## Contributing
+
+Issues and PRs are welcome. Keep changes small, run `make ci`, and preserve the local-first security model.
+
 ## License
 
-MIT © 2026 Yu SERIZAWA
+[MIT](LICENSE) © 2026 Yu SERIZAWA
