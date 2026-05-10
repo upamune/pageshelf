@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/alecthomas/kong"
 	mdrender "github.com/serizawa/pageshelf/internal/markdown"
+	"github.com/serizawa/pageshelf/internal/secret"
 	"github.com/serizawa/pageshelf/internal/server"
 	"github.com/serizawa/pageshelf/internal/store"
 	"github.com/serizawa/pageshelf/internal/tailscale"
@@ -35,21 +36,22 @@ type ServeCmd struct {
 	UnsafePublicBind bool
 }
 type PutCmd struct {
-	Session     string `short:"s"`
-	Stdin       bool
-	Name        string
-	Content     string
-	Interactive bool
-	Raw         bool     `help:"Store Markdown files as-is instead of rendering .md/.markdown to HTML."`
-	Tag         []string `name:"tag" short:"t" help:"Tag for the session. Repeat or use comma-separated values."`
-	TTL         string   `default:"14d" help:"Session retention duration, e.g. 14d, 48h, 0 for no expiry."`
-	ExpiresAt   string   `name:"expires-at" help:"Explicit expiry timestamp (RFC3339) or date (YYYY-MM-DD)."`
-	JSON        bool
-	Host        string   `default:"127.0.0.1" help:"Host to use when printing the artifact URL."`
-	Port        int      `default:"8787" help:"Port to use when printing the artifact URL."`
-	Tailscale   bool     `help:"Use detected Tailscale IP when printing the artifact URL."`
-	BaseURL     string   `name:"base-url" help:"Base URL to use when printing the artifact URL."`
-	Paths       []string `arg:"" optional:"" name:"paths"`
+	Session      string `short:"s"`
+	Stdin        bool
+	Name         string
+	Content      string
+	Interactive  bool
+	Raw          bool     `help:"Store Markdown files as-is instead of rendering .md/.markdown to HTML."`
+	NoSecretScan bool     `name:"no-secret-scan" help:"Disable default secret scanning before storing content."`
+	Tag          []string `name:"tag" short:"t" help:"Tag for the session. Repeat or use comma-separated values."`
+	TTL          string   `default:"14d" help:"Session retention duration, e.g. 14d, 48h, 0 for no expiry."`
+	ExpiresAt    string   `name:"expires-at" help:"Explicit expiry timestamp (RFC3339) or date (YYYY-MM-DD)."`
+	JSON         bool
+	Host         string   `default:"127.0.0.1" help:"Host to use when printing the artifact URL."`
+	Port         int      `default:"8787" help:"Port to use when printing the artifact URL."`
+	Tailscale    bool     `help:"Use detected Tailscale IP when printing the artifact URL."`
+	BaseURL      string   `name:"base-url" help:"Base URL to use when printing the artifact URL."`
+	Paths        []string `arg:"" optional:"" name:"paths"`
 }
 type SessionCmd struct {
 	Create SessionCreateCmd `cmd:""`
@@ -257,6 +259,14 @@ func (c *URLCmd) Run(ctx *Ctx) error {
 	return nil
 }
 func (c *PutCmd) Run(ctx *Ctx) error {
+	if !c.Stdin && c.Content == "" && len(c.Paths) == 0 {
+		return fmt.Errorf("provide --stdin, --content, or paths")
+	}
+	items, e := c.collectPutItems()
+	if e != nil {
+		return e
+	}
+
 	sid := c.Session
 	slug := c.Name
 	if slug == "" && len(c.Paths) > 0 {
@@ -282,41 +292,11 @@ func (c *PutCmd) Run(ctx *Ctx) error {
 		}
 	}
 	added := []string{}
-	if c.Stdin {
-		if c.Name == "" {
-			return fmt.Errorf("--stdin requires --name")
-		}
-		name, data, e := preparePutContent(os.Stdin, c.Name, c.Raw)
-		if e != nil {
+	for _, item := range items {
+		if _, e := ctx.Store.Put(sid, item.name, bytes.NewReader(item.data), c.Interactive); e != nil {
 			return e
 		}
-		if _, e := ctx.Store.Put(sid, name, bytes.NewReader(data), c.Interactive); e != nil {
-			return e
-		}
-		added = append(added, name)
-	}
-	if c.Content != "" {
-		if c.Name == "" {
-			return fmt.Errorf("--content requires --name")
-		}
-		name, data, e := preparePutContent(strings.NewReader(c.Content), c.Name, c.Raw)
-		if e != nil {
-			return e
-		}
-		if _, e := ctx.Store.Put(sid, name, bytes.NewReader(data), c.Interactive); e != nil {
-			return e
-		}
-		added = append(added, name)
-	}
-	for _, p := range c.Paths {
-		paths, e := putPath(ctx.Store, sid, p, c.Interactive, c.Raw)
-		if e != nil {
-			return e
-		}
-		added = append(added, paths...)
-	}
-	if !c.Stdin && c.Content == "" && len(c.Paths) == 0 {
-		return fmt.Errorf("provide --stdin, --content, or paths")
+		added = append(added, item.name)
 	}
 	b, e := publicBaseURL(c.Host, c.Port, c.Tailscale, c.BaseURL)
 	if e != nil {
@@ -329,6 +309,43 @@ func (c *PutCmd) Run(ctx *Ctx) error {
 		fmt.Printf("session: %s\nurl: %s\n", sid, u)
 	}
 	return nil
+}
+
+type putItem struct {
+	name string
+	data []byte
+}
+
+func (c *PutCmd) collectPutItems() ([]putItem, error) {
+	items := []putItem{}
+	if c.Stdin {
+		if c.Name == "" {
+			return nil, fmt.Errorf("--stdin requires --name")
+		}
+		name, data, e := preparePutContentWithSecretScan(os.Stdin, c.Name, c.Raw, !c.NoSecretScan)
+		if e != nil {
+			return nil, e
+		}
+		items = append(items, putItem{name: name, data: data})
+	}
+	if c.Content != "" {
+		if c.Name == "" {
+			return nil, fmt.Errorf("--content requires --name")
+		}
+		name, data, e := preparePutContentWithSecretScan(strings.NewReader(c.Content), c.Name, c.Raw, !c.NoSecretScan)
+		if e != nil {
+			return nil, e
+		}
+		items = append(items, putItem{name: name, data: data})
+	}
+	for _, p := range c.Paths {
+		pathItems, e := collectPutPathItems(p, c.Raw, !c.NoSecretScan)
+		if e != nil {
+			return nil, e
+		}
+		items = append(items, pathItems...)
+	}
+	return items, nil
 }
 func (c *GCCmd) Run(ctx *Ctx) error {
 	res, e := ctx.Store.GC(time.Now(), c.DryRun)
@@ -398,6 +415,10 @@ func preferredPutURLPath(paths []string) string {
 }
 
 func preparePutContent(r io.Reader, name string, raw bool) (string, []byte, error) {
+	return preparePutContentWithSecretScan(r, name, raw, false)
+}
+
+func preparePutContentWithSecretScan(r io.Reader, name string, raw bool, scan bool) (string, []byte, error) {
 	data, err := io.ReadAll(io.LimitReader(r, store.MaxFileSize+1))
 	if err != nil {
 		return "", nil, err
@@ -406,10 +427,20 @@ func preparePutContent(r io.Reader, name string, raw bool) (string, []byte, erro
 		return "", nil, fmt.Errorf("file too large")
 	}
 	name = filepath.ToSlash(name)
+	if scan {
+		if err := secret.Check(name, data); err != nil {
+			return "", nil, err
+		}
+	}
 	if !raw && mdrender.IsMarkdownPath(name) {
 		rendered, err := mdrender.Render(data, name)
 		if err != nil {
 			return "", nil, err
+		}
+		if scan {
+			if err := secret.Check(mdrender.HTMLPath(name), rendered); err != nil {
+				return "", nil, err
+			}
 		}
 		return mdrender.HTMLPath(name), rendered, nil
 	}
@@ -417,6 +448,21 @@ func preparePutContent(r io.Reader, name string, raw bool) (string, []byte, erro
 }
 
 func putPath(st *store.Store, sid, p string, interactive bool, raw bool) ([]string, error) {
+	items, err := collectPutPathItems(p, raw, false)
+	if err != nil {
+		return nil, err
+	}
+	added := []string{}
+	for _, item := range items {
+		if _, err := st.Put(sid, item.name, bytes.NewReader(item.data), interactive); err != nil {
+			return nil, err
+		}
+		added = append(added, item.name)
+	}
+	return added, nil
+}
+
+func collectPutPathItems(p string, raw bool, scan bool) ([]putItem, error) {
 	info, e := os.Lstat(p)
 	if e != nil {
 		return nil, e
@@ -425,7 +471,7 @@ func putPath(st *store.Store, sid, p string, interactive bool, raw bool) ([]stri
 		return nil, fmt.Errorf("rejecting symlink: %s", p)
 	}
 	if info.IsDir() {
-		added := []string{}
+		items := []putItem{}
 		err := filepath.WalkDir(p, func(path string, d os.DirEntry, e error) error {
 			if e != nil {
 				return e
@@ -442,18 +488,15 @@ func putPath(st *store.Store, sid, p string, interactive bool, raw bool) ([]stri
 			}
 			rel, _ := filepath.Rel(p, path)
 			rel = filepath.ToSlash(rel)
-			name, data, prepErr := preparePutContent(f, rel, raw)
+			name, data, prepErr := preparePutContentWithSecretScan(f, rel, raw, scan)
 			closeErr := f.Close()
 			if prepErr != nil {
 				return prepErr
 			}
-			if _, putErr := st.Put(sid, name, bytes.NewReader(data), interactive); putErr != nil {
-				return putErr
-			}
-			added = append(added, name)
+			items = append(items, putItem{name: name, data: data})
 			return closeErr
 		})
-		return added, err
+		return items, err
 	}
 	f, e := os.Open(p)
 	if e != nil {
@@ -461,10 +504,9 @@ func putPath(st *store.Store, sid, p string, interactive bool, raw bool) ([]stri
 	}
 	defer f.Close()
 	name := filepath.Base(p)
-	name, data, e := preparePutContent(f, name, raw)
+	name, data, e := preparePutContentWithSecretScan(f, name, raw, scan)
 	if e != nil {
 		return nil, e
 	}
-	_, e = st.Put(sid, name, bytes.NewReader(data), interactive)
-	return []string{name}, e
+	return []putItem{{name: name, data: data}}, nil
 }

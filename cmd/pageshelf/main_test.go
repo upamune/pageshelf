@@ -9,6 +9,8 @@ import (
 	"github.com/serizawa/pageshelf/internal/store"
 )
 
+const testSecret = "ghp_123456789012345678901234567890123456"
+
 func newTestSession(t *testing.T) (*store.Store, string) {
 	t.Helper()
 	st, err := store.New(t.TempDir())
@@ -104,5 +106,92 @@ func TestPutPathRawMarkdownKeepsMDPath(t *testing.T) {
 	}
 	if len(m.Files) != 1 || m.Files[0].Path != "report.md" {
 		t.Fatalf("manifest files = %#v", m.Files)
+	}
+}
+
+func TestPutSecretScanDefaultBlocksFileBeforeSessionCreate(t *testing.T) {
+	st, err := store.New(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	secretPath := filepath.Join(dir, "secret.txt")
+	if err := os.WriteFile(secretPath, []byte("key="+testSecret+"\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	err = (&PutCmd{Paths: []string{secretPath}}).Run(&Ctx{Store: st})
+	if err == nil || !strings.Contains(err.Error(), "secret scan blocked") || !strings.Contains(err.Error(), "gitleaks detected") {
+		t.Fatalf("err = %v, want gitleaks secret scan blocked", err)
+	}
+	if !strings.Contains(err.Error(), "secret.txt:1") {
+		t.Fatalf("err = %v, want file and line in error", err)
+	}
+	sessions, err := st.List()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(sessions) != 0 {
+		t.Fatalf("sessions = %#v, want no empty session", sessions)
+	}
+}
+
+func TestPutNoSecretScanAllowsSecretFile(t *testing.T) {
+	st, sid := newTestSession(t)
+	dir := t.TempDir()
+	secretPath := filepath.Join(dir, "secret.txt")
+	if err := os.WriteFile(secretPath, []byte("key="+testSecret+"\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	items, err := (&PutCmd{NoSecretScan: true, Paths: []string{secretPath}}).collectPutItems()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 1 || items[0].name != "secret.txt" {
+		t.Fatalf("items = %#v", items)
+	}
+	if _, err := st.Put(sid, items[0].name, strings.NewReader(string(items[0].data)), false); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestPutSecretScanBlocksNestedDirectorySecret(t *testing.T) {
+	dir := t.TempDir()
+	nested := filepath.Join(dir, "nested")
+	if err := os.Mkdir(nested, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(nested, "secret.md"), []byte("# Leak\n\n"+testSecret+"\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	_, err := (&PutCmd{Paths: []string{dir}}).collectPutItems()
+	if err == nil || !strings.Contains(err.Error(), "secret scan blocked nested/secret.md") {
+		t.Fatalf("err = %v, want nested secret blocked", err)
+	}
+}
+
+func TestPutSecretScanBlocksContent(t *testing.T) {
+	_, err := (&PutCmd{Name: "note.txt", Content: "aws_access_key_id = " + testSecret}).collectPutItems()
+	if err == nil || !strings.Contains(err.Error(), "secret scan blocked") {
+		t.Fatalf("err = %v, want content secret blocked", err)
+	}
+}
+
+func TestPutSecretScanBlocksStdin(t *testing.T) {
+	oldStdin := os.Stdin
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stdin = r
+	defer func() { os.Stdin = oldStdin }()
+	if _, err := w.WriteString("aws_access_key_id = " + testSecret); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatal(err)
+	}
+	_, err = (&PutCmd{Name: "stdin.txt", Stdin: true}).collectPutItems()
+	if err == nil || !strings.Contains(err.Error(), "secret scan blocked") {
+		t.Fatalf("err = %v, want stdin secret blocked", err)
 	}
 }
