@@ -33,7 +33,7 @@ go build -o pageshelf ./cmd/pageshelf
 Or install directly from the repo:
 
 ```sh
-go install github.com/upamune/pageshelf/cmd/pageshelf@latest
+go install github.com/upamune/pageshelf/cmd/pageshelf@v0.2.0
 ```
 
 Storage defaults to:
