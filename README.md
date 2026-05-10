@@ -24,16 +24,39 @@ Pageshelf lets an agent generate a real HTML artifact, store it in a session, an
 
 ## Install
 
-Build from source:
+### With mise
+
+If you use [mise](https://mise.jdx.dev/), install the latest GitHub Release binary globally:
+
+```sh
+mise use -g github:upamune/pageshelf@latest
+```
+
+Verify it:
+
+```sh
+pageshelf version
+```
+
+### From release binaries
+
+Download a prebuilt binary from the latest GitHub Release. For example, on Linux amd64:
+
+```sh
+version=$(curl -fsSL https://api.github.com/repos/upamune/pageshelf/releases/latest \
+  | sed -n 's/.*"tag_name": "v\([^"]*\)".*/\1/p')
+curl -fsSL "https://github.com/upamune/pageshelf/releases/latest/download/pageshelf_${version}_linux_amd64.tar.gz" \
+  | tar -xz pageshelf
+chmod +x pageshelf
+sudo mv pageshelf /usr/local/bin/
+```
+
+Other builds are available for Linux, macOS, and Windows on the [releases page](https://github.com/upamune/pageshelf/releases).
+
+### Build from source
 
 ```sh
 go build -o pageshelf ./cmd/pageshelf
-```
-
-Or install directly from the repo:
-
-```sh
-go install github.com/upamune/pageshelf/cmd/pageshelf@v0.2.0
 ```
 
 Storage defaults to:

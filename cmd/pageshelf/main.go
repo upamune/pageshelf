@@ -29,6 +29,7 @@ type CLI struct {
 	Files   FilesCmd   `cmd:""`
 	URL     URLCmd     `cmd:""`
 	GC      GCCmd      `cmd:"" help:"Remove expired sessions."`
+	Version VersionCmd `cmd:"" help:"Print version information."`
 }
 type (
 	Ctx      struct{ Store *store.Store }
@@ -109,15 +110,33 @@ type GCCmd struct {
 	JSON   bool
 }
 
+type VersionCmd struct{}
+
 func main() {
+	if len(os.Args) == 2 && os.Args[1] == "--version" {
+		fmt.Println(store.Version)
+		return
+	}
 	var cli CLI
-	k := kong.Parse(&cli, kong.Name("pageshelf"), kong.Description("agent-generated HTML artifact shelf v"+store.Version))
+	k := kong.Parse(
+		&cli,
+		kong.Name("pageshelf"),
+		kong.Description("agent-generated HTML artifact shelf v"+store.Version),
+		kong.UsageOnError(),
+		kong.ConfigureHelp(kong.HelpOptions{Compact: true}),
+		kong.Vars{"version": store.Version},
+	)
 	st, err := store.New(cli.DataDir)
 	k.FatalIfErrorf(err)
 	err = k.Run(&Ctx{Store: st})
 	k.FatalIfErrorf(err)
 }
 func printJSON(v any) { b, _ := json.MarshalIndent(v, "", "  "); fmt.Println(string(b)) }
+
+func (c *VersionCmd) Run(_ *Ctx) error {
+	fmt.Println(store.Version)
+	return nil
+}
 func baseURL(host string, port int) string {
 	return fmt.Sprintf("http://%s", net.JoinHostPort(host, fmt.Sprint(port)))
 }

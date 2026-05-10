@@ -1,6 +1,7 @@
 package main
 
 import (
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -196,5 +197,31 @@ func TestPutSecretScanBlocksStdin(t *testing.T) {
 	_, err = (&PutCmd{Name: "stdin.txt", Stdin: true}).collectPutItems()
 	if err == nil || !strings.Contains(err.Error(), "secret scan blocked") {
 		t.Fatalf("err = %v, want stdin secret blocked", err)
+	}
+}
+
+func TestVersionCommandPrintsStoreVersion(t *testing.T) {
+	var out strings.Builder
+	oldStdout := os.Stdout
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stdout = w
+	err = (&VersionCmd{}).Run(&Ctx{})
+	if closeErr := w.Close(); closeErr != nil {
+		t.Fatal(closeErr)
+	}
+	os.Stdout = oldStdout
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := io.ReadAll(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out.Write(b)
+	if strings.TrimSpace(out.String()) != store.Version {
+		t.Fatalf("version output = %q, want %q", out.String(), store.Version)
 	}
 }
