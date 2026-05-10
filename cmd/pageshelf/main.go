@@ -137,6 +137,7 @@ func (c *VersionCmd) Run(_ *Ctx) error {
 	fmt.Println(store.Version)
 	return nil
 }
+
 func baseURL(host string, port int) string {
 	return fmt.Sprintf("http://%s", net.JoinHostPort(host, fmt.Sprint(port)))
 }
