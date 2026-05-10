@@ -44,7 +44,9 @@ Install or copy that skill into an agent skill directory when you want agents to
 - Server binds to `127.0.0.1` by default.
 - `--tailscale` binds to a detected `100.64.0.0/10` address.
 - Empty host, `0.0.0.0`, and `::` public binds are rejected unless `--unsafe-public-bind` is supplied.
+- `put` returns a URL for the artifact it actually added: a single `foo.html` returns `foo.html`; multi-file uploads prefer `index.html` when present, otherwise the first added file.
 - `put` and `url` print localhost URLs by default, or can generate URLs with `--host/--port`, `--tailscale`, or `--base-url`.
+- With `--tailscale`, URL generation prefers the local MagicDNS name from `hostname -f` or `tailscale status --json` (for example `omarchy-1.tailaf73.ts.net`) and falls back to the raw Tailscale IP.
 - Each session has a random `psr_...` read token. The manifest stores only a SHA-256 hash; the plaintext token is stored in a local `0600` token file so the CLI can later reconstruct URLs.
 - Artifact paths reject absolute paths, `..`, backslashes and NUL bytes.
 - Symlink inputs are rejected.

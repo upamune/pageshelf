@@ -151,6 +151,14 @@ pageshelf put --tailscale index.html
 pageshelf put --base-url http://agent-box:8787 index.html
 ```
 
+With `--tailscale`, pageshelf prefers the local MagicDNS name when available, e.g. `http://omarchy-1.tailaf73.ts.net:8787/...`, and falls back to the raw `100.x.y.z` Tailscale IP.
+
+URL selection from `put`:
+
+- A single file returns that file's URL, e.g. `pageshelf put foo.html` returns `/foo.html`.
+- `--stdin --name index.html` and `--content ... --name index.html` return `/index.html`.
+- Multi-file/directory uploads prefer `index.html` if present; otherwise they return the first added file.
+
 Interactive HTML:
 
 ```bash

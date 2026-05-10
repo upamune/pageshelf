@@ -1,6 +1,7 @@
 package tailscale
 
 import (
+	"errors"
 	"net"
 	"testing"
 )
@@ -31,5 +32,38 @@ func TestCandidateIPRejectsOutsideRange(t *testing.T) {
 	_, err := CandidateIP([]Interface{{Name: "bad", Flags: net.FlagUp, Addrs: []net.Addr{mustCIDR("100.63.255.255/32"), mustCIDR("127.0.0.1/32")}}})
 	if err == nil {
 		t.Fatal("expected no Tailscale IP")
+	}
+}
+
+func TestMagicDNSNamePrefersHostnameFQDN(t *testing.T) {
+	old := commandOutput
+	t.Cleanup(func() { commandOutput = old })
+	commandOutput = func(name string, args ...string) ([]byte, error) {
+		if name == "hostname" {
+			return []byte("omarchy-1.tailaf73.ts.net.\n"), nil
+		}
+		return nil, errors.New("unexpected command")
+	}
+	got, err := MagicDNSName()
+	if err != nil || got != "omarchy-1.tailaf73.ts.net" {
+		t.Fatalf("got %q err %v", got, err)
+	}
+}
+
+func TestMagicDNSNameFallsBackToTailscaleStatus(t *testing.T) {
+	old := commandOutput
+	t.Cleanup(func() { commandOutput = old })
+	commandOutput = func(name string, args ...string) ([]byte, error) {
+		if name == "hostname" {
+			return []byte("omarchy\n"), nil
+		}
+		if name == "tailscale" {
+			return []byte(`{"Self":{"DNSName":"omarchy-1.tailaf73.ts.net."}}`), nil
+		}
+		return nil, errors.New("unexpected command")
+	}
+	got, err := MagicDNSName()
+	if err != nil || got != "omarchy-1.tailaf73.ts.net" {
+		t.Fatalf("got %q err %v", got, err)
 	}
 }

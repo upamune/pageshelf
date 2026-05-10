@@ -91,6 +91,10 @@ func publicBaseURL(host string, port int, useTS bool, explicit string) (string, 
 		return strings.TrimRight(explicit, "/"), nil
 	}
 	if useTS {
+		if name, err := tailscale.MagicDNSName(); err == nil {
+			host = name
+			return baseURL(host, port), nil
+		}
 		ip, err := tailscale.IP()
 		if err != nil {
 			return "", err
@@ -209,6 +213,7 @@ func (c *PutCmd) Run(ctx *Ctx) error {
 			return e
 		}
 	}
+	added := []string{}
 	if c.Stdin {
 		if c.Name == "" {
 			return fmt.Errorf("--stdin requires --name")
@@ -216,6 +221,7 @@ func (c *PutCmd) Run(ctx *Ctx) error {
 		if _, e := ctx.Store.Put(sid, c.Name, os.Stdin, c.Interactive); e != nil {
 			return e
 		}
+		added = append(added, c.Name)
 	}
 	if c.Content != "" {
 		if c.Name == "" {
@@ -224,11 +230,14 @@ func (c *PutCmd) Run(ctx *Ctx) error {
 		if _, e := ctx.Store.Put(sid, c.Name, strings.NewReader(c.Content), c.Interactive); e != nil {
 			return e
 		}
+		added = append(added, c.Name)
 	}
 	for _, p := range c.Paths {
-		if e := putPath(ctx.Store, sid, p, c.Interactive); e != nil {
+		paths, e := putPath(ctx.Store, sid, p, c.Interactive)
+		if e != nil {
 			return e
 		}
+		added = append(added, paths...)
 	}
 	if !c.Stdin && c.Content == "" && len(c.Paths) == 0 {
 		return fmt.Errorf("provide --stdin, --content, or paths")
@@ -237,7 +246,7 @@ func (c *PutCmd) Run(ctx *Ctx) error {
 	if e != nil {
 		return e
 	}
-	u := store.URL(b, sid, "index.html", tok)
+	u := store.URL(b, sid, preferredPutURLPath(added), tok)
 	if c.JSON {
 		printJSON(map[string]string{"session": sid, "url": u})
 	} else {
@@ -245,16 +254,29 @@ func (c *PutCmd) Run(ctx *Ctx) error {
 	}
 	return nil
 }
-func putPath(st *store.Store, sid, p string, interactive bool) error {
+func preferredPutURLPath(paths []string) string {
+	if len(paths) == 0 {
+		return "index.html"
+	}
+	for _, p := range paths {
+		if filepath.ToSlash(p) == "index.html" {
+			return p
+		}
+	}
+	return paths[0]
+}
+
+func putPath(st *store.Store, sid, p string, interactive bool) ([]string, error) {
 	info, e := os.Lstat(p)
 	if e != nil {
-		return e
+		return nil, e
 	}
 	if info.Mode()&os.ModeSymlink != 0 {
-		return fmt.Errorf("rejecting symlink: %s", p)
+		return nil, fmt.Errorf("rejecting symlink: %s", p)
 	}
 	if info.IsDir() {
-		return filepath.WalkDir(p, func(path string, d os.DirEntry, e error) error {
+		added := []string{}
+		err := filepath.WalkDir(p, func(path string, d os.DirEntry, e error) error {
 			if e != nil {
 				return e
 			}
@@ -269,20 +291,23 @@ func putPath(st *store.Store, sid, p string, interactive bool) error {
 				return e
 			}
 			rel, _ := filepath.Rel(p, path)
+			rel = filepath.ToSlash(rel)
 			_, putErr := st.Put(sid, rel, f, interactive)
 			closeErr := f.Close()
 			if putErr != nil {
 				return putErr
 			}
+			added = append(added, rel)
 			return closeErr
 		})
+		return added, err
 	}
 	f, e := os.Open(p)
 	if e != nil {
-		return e
+		return nil, e
 	}
 	defer f.Close()
 	name := filepath.Base(p)
 	_, e = st.Put(sid, name, io.Reader(f), interactive)
-	return e
+	return []string{name}, e
 }
