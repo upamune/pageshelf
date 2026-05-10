@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/assets/pageshelf-logo.png" alt="pageshelf logo" width="640">
+</p>
+
 # pageshelf
 
 A tiny, security-first shelf for agent-generated HTML artifacts.
