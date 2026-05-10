@@ -120,6 +120,8 @@ Publish files into a session. If `--session` is omitted, pageshelf creates a new
 
 ```bash
 pageshelf put index.html
+pageshelf put report.md
+pageshelf put --raw source.md
 pageshelf put index.html assets/
 pageshelf put -s pr-review index.html
 pageshelf put -s pr-review ./artifact/
@@ -156,7 +158,10 @@ With `--tailscale`, pageshelf prefers the local MagicDNS name when available, e.
 URL selection from `put`:
 
 - A single file returns that file's URL, e.g. `pageshelf put foo.html` returns `/foo.html`.
+- Markdown files render to HTML by default: `report.md` returns `/report.html`, `index.md` returns `/index.html`.
+- Use `--raw` when you need to serve the Markdown file itself, e.g. `pageshelf put --raw report.md` returns `/report.md`.
 - `--stdin --name index.html` and `--content ... --name index.html` return `/index.html`.
+- `--stdin --name report.md` and `--content ... --name report.md` render Markdown unless `--raw` is supplied.
 - Multi-file/directory uploads prefer `index.html` if present; otherwise they return the first added file.
 
 Interactive HTML:

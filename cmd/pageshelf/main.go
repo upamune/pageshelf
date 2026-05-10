@@ -1,9 +1,11 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"github.com/alecthomas/kong"
+	mdrender "github.com/serizawa/pageshelf/internal/markdown"
 	"github.com/serizawa/pageshelf/internal/server"
 	"github.com/serizawa/pageshelf/internal/store"
 	"github.com/serizawa/pageshelf/internal/tailscale"
@@ -36,6 +38,7 @@ type PutCmd struct {
 	Name        string
 	Content     string
 	Interactive bool
+	Raw         bool `help:"Store Markdown files as-is instead of rendering .md/.markdown to HTML."`
 	JSON        bool
 	Host        string   `default:"127.0.0.1" help:"Host to use when printing the artifact URL."`
 	Port        int      `default:"8787" help:"Port to use when printing the artifact URL."`
@@ -218,22 +221,30 @@ func (c *PutCmd) Run(ctx *Ctx) error {
 		if c.Name == "" {
 			return fmt.Errorf("--stdin requires --name")
 		}
-		if _, e := ctx.Store.Put(sid, c.Name, os.Stdin, c.Interactive); e != nil {
+		name, data, e := preparePutContent(os.Stdin, c.Name, c.Raw)
+		if e != nil {
 			return e
 		}
-		added = append(added, c.Name)
+		if _, e := ctx.Store.Put(sid, name, bytes.NewReader(data), c.Interactive); e != nil {
+			return e
+		}
+		added = append(added, name)
 	}
 	if c.Content != "" {
 		if c.Name == "" {
 			return fmt.Errorf("--content requires --name")
 		}
-		if _, e := ctx.Store.Put(sid, c.Name, strings.NewReader(c.Content), c.Interactive); e != nil {
+		name, data, e := preparePutContent(strings.NewReader(c.Content), c.Name, c.Raw)
+		if e != nil {
 			return e
 		}
-		added = append(added, c.Name)
+		if _, e := ctx.Store.Put(sid, name, bytes.NewReader(data), c.Interactive); e != nil {
+			return e
+		}
+		added = append(added, name)
 	}
 	for _, p := range c.Paths {
-		paths, e := putPath(ctx.Store, sid, p, c.Interactive)
+		paths, e := putPath(ctx.Store, sid, p, c.Interactive, c.Raw)
 		if e != nil {
 			return e
 		}
@@ -266,7 +277,26 @@ func preferredPutURLPath(paths []string) string {
 	return paths[0]
 }
 
-func putPath(st *store.Store, sid, p string, interactive bool) ([]string, error) {
+func preparePutContent(r io.Reader, name string, raw bool) (string, []byte, error) {
+	data, err := io.ReadAll(io.LimitReader(r, store.MaxFileSize+1))
+	if err != nil {
+		return "", nil, err
+	}
+	if int64(len(data)) > store.MaxFileSize {
+		return "", nil, fmt.Errorf("file too large")
+	}
+	name = filepath.ToSlash(name)
+	if !raw && mdrender.IsMarkdownPath(name) {
+		rendered, err := mdrender.Render(data, name)
+		if err != nil {
+			return "", nil, err
+		}
+		return mdrender.HTMLPath(name), rendered, nil
+	}
+	return name, data, nil
+}
+
+func putPath(st *store.Store, sid, p string, interactive bool, raw bool) ([]string, error) {
 	info, e := os.Lstat(p)
 	if e != nil {
 		return nil, e
@@ -292,12 +322,15 @@ func putPath(st *store.Store, sid, p string, interactive bool) ([]string, error)
 			}
 			rel, _ := filepath.Rel(p, path)
 			rel = filepath.ToSlash(rel)
-			_, putErr := st.Put(sid, rel, f, interactive)
+			name, data, prepErr := preparePutContent(f, rel, raw)
 			closeErr := f.Close()
-			if putErr != nil {
+			if prepErr != nil {
+				return prepErr
+			}
+			if _, putErr := st.Put(sid, name, bytes.NewReader(data), interactive); putErr != nil {
 				return putErr
 			}
-			added = append(added, rel)
+			added = append(added, name)
 			return closeErr
 		})
 		return added, err
@@ -308,6 +341,10 @@ func putPath(st *store.Store, sid, p string, interactive bool) ([]string, error)
 	}
 	defer f.Close()
 	name := filepath.Base(p)
-	_, e = st.Put(sid, name, io.Reader(f), interactive)
+	name, data, e := preparePutContent(f, name, raw)
+	if e != nil {
+		return nil, e
+	}
+	_, e = st.Put(sid, name, bytes.NewReader(data), interactive)
 	return []string{name}, e
 }

@@ -18,7 +18,7 @@ go build ./cmd/pageshelf
 
 ```sh
 pageshelf serve [--tailscale] [--host HOST] [--port PORT] [--unsafe-public-bind]
-pageshelf put [--session SESSION] [--stdin --name NAME | --content TEXT --name NAME | paths...] [--interactive] [--json] [--host HOST --port PORT | --tailscale | --base-url URL]
+pageshelf put [--session SESSION] [--stdin --name NAME | --content TEXT --name NAME | paths...] [--interactive] [--raw] [--json] [--host HOST --port PORT | --tailscale | --base-url URL]
 pageshelf session create [name] [--json]
 pageshelf session info <session> [--json]
 pageshelf session rm <session>
@@ -45,6 +45,7 @@ Install or copy that skill into an agent skill directory when you want agents to
 - `--tailscale` binds to a detected `100.64.0.0/10` address.
 - Empty host, `0.0.0.0`, and `::` public binds are rejected unless `--unsafe-public-bind` is supplied.
 - `put` returns a URL for the artifact it actually added: a single `foo.html` returns `foo.html`; multi-file uploads prefer `index.html` when present, otherwise the first added file.
+- `put` renders Markdown inputs by default: `report.md` becomes `report.html`, `index.md` becomes `index.html`, and the returned URL points at the generated HTML. Use `--raw` to serve `.md`/`.markdown` files as literal Markdown files instead.
 - `put` and `url` print localhost URLs by default, or can generate URLs with `--host/--port`, `--tailscale`, or `--base-url`.
 - With `--tailscale`, URL generation prefers the local MagicDNS name from `hostname -f` or `tailscale status --json` (for example `omarchy-1.tailaf73.ts.net`) and falls back to the raw Tailscale IP.
 - Each session has a random `psr_...` read token. The manifest stores only a SHA-256 hash; the plaintext token is stored in a local `0600` token file so the CLI can later reconstruct URLs.
