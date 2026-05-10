@@ -40,18 +40,7 @@ pageshelf version
 
 ### From release binaries
 
-Download a prebuilt binary from the latest GitHub Release. For example, on Linux amd64:
-
-```sh
-version=$(curl -fsSL https://api.github.com/repos/upamune/pageshelf/releases/latest \
-  | sed -n 's/.*"tag_name": "v\([^"]*\)".*/\1/p')
-curl -fsSL "https://github.com/upamune/pageshelf/releases/latest/download/pageshelf_${version}_linux_amd64.tar.gz" \
-  | tar -xz pageshelf
-chmod +x pageshelf
-sudo mv pageshelf /usr/local/bin/
-```
-
-Other builds are available for Linux, macOS, and Windows on the [releases page](https://github.com/upamune/pageshelf/releases).
+Download a prebuilt binary for Linux, macOS, or Windows from the [latest GitHub Release](https://github.com/upamune/pageshelf/releases/latest).
 
 ### Build from source
 
@@ -208,40 +197,6 @@ pageshelf session meta rate-limiter --tag pr-review --ttl 14d
 pageshelf gc --dry-run
 ```
 
-## Security model
-
-Pageshelf assumes artifacts are private, local/tailnet-readable files. It is intentionally conservative.
-
-Default protections:
-
-- binds to `127.0.0.1` by default
-- `--tailscale` binds to a detected `100.64.0.0/10` Tailscale address
-- wildcard/public binds require `--unsafe-public-bind`
-- artifact URLs require a random `psr_...` read token
-- only a SHA-256 token hash is stored in the manifest
-- plaintext read tokens are kept in local `0600` token files for URL regeneration
-- absolute paths, `..`, backslashes, and NUL bytes are rejected
-- symlink inputs are rejected
-- `Cache-Control: no-store`
-- `X-Content-Type-Options: nosniff`
-- `Referrer-Policy: no-referrer`
-- `X-Frame-Options: DENY`
-- COOP/CORP and restrictive Permissions-Policy headers
-
-Safe CSP mode disables scripts:
-
-```http
-script-src 'none'
-connect-src 'none'
-```
-
-Interactive mode allows local/inline scripts but still blocks network access:
-
-```http
-script-src 'self' 'unsafe-inline'
-connect-src 'none'
-```
-
 ## Secret scanning
 
 `pageshelf put` scans inputs with Gitleaks by default before storing content.
@@ -289,7 +244,7 @@ With `--tailscale`, Pageshelf prefers MagicDNS when available and falls back to 
 This repo includes a Hermes-style skill for teaching agents the preferred workflow:
 
 ```text
-skills/devops/pageshelf/SKILL.md
+skills/pageshelf/SKILL.md
 ```
 
 Use that skill when an agent should:
