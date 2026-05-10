@@ -14,14 +14,11 @@ Pageshelf is a tiny, security-first artifact shelf for agent-generated HTML repo
 - default-on Gitleaks scanning before artifacts are stored
 - bundled agent skill and `DESIGN.md` for consistent agent-authored outputs
 
-<table>
- <tr>
-   <td width="58%" align="center">
-     <img width="640" alt="Pageshelf logo" src="docs/assets/pageshelf-logo.webp" />
-     <br />
-     <sub>Kawaii shelf-keeper mascot for secure HTML artifact sharing</sub>
-   </td>
-   <td width="42%">
+<p align="center">
+  <img width="720" alt="Pageshelf logo" src="docs/assets/pageshelf-logo-1280.png" />
+  <br />
+  <sub>Kawaii shelf-keeper mascot for secure HTML artifact sharing</sub>
+</p>
 
 ```bash
 pageshelf serve --tailscale
@@ -32,10 +29,6 @@ pageshelf put --tailscale report.html
 session: 20260510-0924-artifact-7k3p
 url: http://example.tailnet.ts.net:8787/a/.../report.html?t=psr_xxx
 ```
-
-   </td>
- </tr>
-</table>
 
 ## Install
 
