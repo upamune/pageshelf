@@ -1,5 +1,9 @@
 # pageshelf
 
+<p align="center">
+  <img width="720" alt="Pageshelf logo" src="docs/assets/pageshelf-logo-1280.png" />
+</p>
+
 Pageshelf is a tiny, security-first artifact shelf for agent-generated HTML reports, plans, PR explainers, diagrams, annotated diffs, and interactive review pages.
 
 [![CI status](https://img.shields.io/github/actions/workflow/status/upamune/pageshelf/ci.yml?branch=main&style=for-the-badge&label=CI)](https://github.com/upamune/pageshelf/actions/workflows/ci.yml?branch=main)
@@ -12,23 +16,6 @@ Pageshelf is a tiny, security-first artifact shelf for agent-generated HTML repo
 - default localhost bind, private Tailscale sharing, and guarded public binds
 - Markdown-to-HTML publishing, multi-file sessions, TTL metadata, and GC
 - default-on Gitleaks scanning before artifacts are stored
-- bundled agent skill and `DESIGN.md` for consistent agent-authored outputs
-
-<p align="center">
-  <img width="720" alt="Pageshelf logo" src="docs/assets/pageshelf-logo-1280.png" />
-  <br />
-  <sub>Kawaii shelf-keeper mascot for secure HTML artifact sharing</sub>
-</p>
-
-```bash
-pageshelf serve --tailscale
-pageshelf put --tailscale report.html
-```
-
-```text
-session: 20260510-0924-artifact-7k3p
-url: http://example.tailnet.ts.net:8787/a/.../report.html?t=psr_xxx
-```
 
 ## Install
 
