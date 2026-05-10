@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestSafeRelRejectsTraversal(t *testing.T) {
@@ -92,5 +93,64 @@ func TestPutReplacementDoesNotConsumeFileLimit(t *testing.T) {
 	}
 	if _, err := st.Put(m.ID, "new.txt", strings.NewReader("new"), false); err == nil {
 		t.Fatal("expected file limit for new file")
+	}
+}
+
+func TestCreateWithOptionsAddsMetadataAndDefaultExpiry(t *testing.T) {
+	st, err := New(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	before := time.Now().Add(DefaultTTL - time.Minute)
+	m, tok, err := st.CreateWithOptions(CreateOptions{Name: "demo", Slug: "demo", Tags: []string{"Plan", "agent,report", "plan"}})
+	if err != nil || tok == "" {
+		t.Fatal(err)
+	}
+	if got := strings.Join(m.Tags, ","); got != "agent,plan,report" {
+		t.Fatalf("tags = %q", got)
+	}
+	if m.ExpiresAt.Before(before) || m.ExpiresAt.After(time.Now().Add(DefaultTTL+time.Minute)) {
+		t.Fatalf("unexpected expires_at %s", m.ExpiresAt)
+	}
+}
+
+func TestUpdateMetadataAndGC(t *testing.T) {
+	st, err := New(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	expiredAt := time.Now().Add(-time.Hour)
+	m, _, err := st.CreateWithOptions(CreateOptions{Name: "old", Slug: "old", Tags: []string{"old"}, ExpiresAt: expiredAt})
+	if err != nil {
+		t.Fatal(err)
+	}
+	future := time.Now().Add(time.Hour)
+	updated, err := st.UpdateMetadata(m.ID, []string{"keep", "review"}, &future)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(updated.Tags, ",") != "keep,review" || !updated.ExpiresAt.Equal(future) {
+		t.Fatalf("bad metadata: %#v", updated)
+	}
+	dry, err := st.GC(time.Now(), true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(dry.Removed) != 0 || dry.Kept != 1 {
+		t.Fatalf("dry gc = %#v", dry)
+	}
+	past := time.Now().Add(-time.Minute)
+	if _, err := st.UpdateMetadata(m.ID, nil, &past); err != nil {
+		t.Fatal(err)
+	}
+	res, err := st.GC(time.Now(), false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Removed) != 1 || res.Removed[0] != m.ID {
+		t.Fatalf("gc = %#v", res)
+	}
+	if _, err := st.Load(m.ID); err == nil {
+		t.Fatal("expected expired session to be removed")
 	}
 }

@@ -23,16 +23,33 @@ import (
 const Version = "0.2.0"
 const MaxFileSize int64 = 25 << 20
 const MaxSessionFiles = 1000
+const DefaultTTL = 14 * 24 * time.Hour
 
 var idRe = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$`)
 var badPath = errors.New("invalid artifact path")
 
 type Store struct{ Root string }
+
+type CreateOptions struct {
+	Name        string
+	Slug        string
+	Interactive bool
+	Tags        []string
+	TTL         time.Duration
+	ExpiresAt   time.Time
+}
+
+type GCResult struct {
+	Removed []string `json:"removed"`
+	Kept    int      `json:"kept"`
+}
 type Manifest struct {
 	ID            string    `json:"id"`
 	Name          string    `json:"name,omitempty"`
 	CreatedAt     time.Time `json:"created_at"`
 	UpdatedAt     time.Time `json:"updated_at"`
+	ExpiresAt     time.Time `json:"expires_at"`
+	Tags          []string  `json:"tags,omitempty"`
 	Interactive   bool      `json:"interactive"`
 	ReadTokenHash string    `json:"read_token_hash"`
 	Files         []File    `json:"files"`
@@ -123,17 +140,52 @@ func CheckToken(tok, hash string) bool {
 	got := hex.EncodeToString(h[:])
 	return subtle.ConstantTimeCompare([]byte(got), []byte(hash)) == 1
 }
+func NormalizeTags(tags []string) []string {
+	seen := map[string]bool{}
+	out := []string{}
+	for _, tag := range tags {
+		for _, part := range strings.Split(tag, ",") {
+			part = strings.ToLower(strings.TrimSpace(part))
+			part = strings.Trim(part, "#")
+			if part == "" || seen[part] {
+				continue
+			}
+			seen[part] = true
+			out = append(out, part)
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
 func (s *Store) Create(name, slug string, interactive bool) (*Manifest, string, error) {
+	return s.CreateWithOptions(CreateOptions{Name: name, Slug: slug, Interactive: interactive})
+}
+
+func (s *Store) CreateWithOptions(opts CreateOptions) (*Manifest, string, error) {
+	name := opts.Name
+	slug := opts.Slug
 	if slug == "" {
 		slug = name
 	}
+	now := time.Now()
+	expiresAt := opts.ExpiresAt
+	if expiresAt.IsZero() {
+		ttl := opts.TTL
+		if ttl == 0 {
+			ttl = DefaultTTL
+		}
+		if ttl > 0 {
+			expiresAt = now.Add(ttl)
+		}
+	}
 	rb, _ := random(4)
-	id := time.Now().Format("20060102-1504") + "-" + Slug(slug) + "-" + strings.ToLower(base64.RawURLEncoding.EncodeToString(rb))[:6]
+	id := now.Format("20060102-1504") + "-" + Slug(slug) + "-" + strings.ToLower(base64.RawURLEncoding.EncodeToString(rb))[:6]
 	tok, hash, e := NewToken()
 	if e != nil {
 		return nil, "", e
 	}
-	m := &Manifest{ID: id, Name: name, CreatedAt: time.Now(), UpdatedAt: time.Now(), Interactive: interactive, ReadTokenHash: hash}
+	m := &Manifest{ID: id, Name: name, CreatedAt: now, UpdatedAt: now, ExpiresAt: expiresAt, Tags: NormalizeTags(opts.Tags), Interactive: opts.Interactive, ReadTokenHash: hash}
 	if e = s.save(m); e != nil {
 		return nil, "", e
 	}
@@ -286,6 +338,45 @@ func (s *Store) Remove(id string) error {
 	}
 	return os.RemoveAll(s.SessionDir(id))
 }
+
+func (s *Store) UpdateMetadata(id string, tags []string, expiresAt *time.Time) (*Manifest, error) {
+	m, e := s.Load(id)
+	if e != nil {
+		return nil, e
+	}
+	if tags != nil {
+		m.Tags = NormalizeTags(tags)
+	}
+	if expiresAt != nil {
+		m.ExpiresAt = *expiresAt
+	}
+	if e := s.save(m); e != nil {
+		return nil, e
+	}
+	return m, nil
+}
+
+func (s *Store) GC(now time.Time, dryRun bool) (GCResult, error) {
+	items, e := s.List()
+	if e != nil {
+		return GCResult{}, e
+	}
+	res := GCResult{}
+	for _, m := range items {
+		if m.ExpiresAt.IsZero() || m.ExpiresAt.After(now) {
+			res.Kept++
+			continue
+		}
+		res.Removed = append(res.Removed, m.ID)
+		if !dryRun {
+			if e := s.Remove(m.ID); e != nil {
+				return res, e
+			}
+		}
+	}
+	return res, nil
+}
+
 func URL(base, session, path, token string) string {
 	if path == "" {
 		path = "index.html"

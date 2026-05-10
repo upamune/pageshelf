@@ -176,13 +176,18 @@ Only use `--interactive` when the artifact needs local JavaScript for sliders, t
 
 ```bash
 pageshelf session create rate-limiter
-pageshelf session create rate-limiter --json
+pageshelf session create rate-limiter --tag plan --tag backend --ttl 14d
+pageshelf session create rate-limiter --expires-at 2026-06-01 --json
 pageshelf session info rate-limiter
 pageshelf session info rate-limiter --json
+pageshelf session meta rate-limiter --tag pr-review --ttl 7d
+pageshelf session meta rate-limiter --clear-tags --ttl 0
 pageshelf session rm rate-limiter
+pageshelf gc --dry-run
+pageshelf gc
 ```
 
-Most agent workflows do not need `session create`; `put` can auto-create sessions.
+Most agent workflows do not need `session create`; `put` can auto-create sessions. New sessions get `created_at`, `updated_at`, and `expires_at` metadata automatically; default retention is 14 days. Add tags during creation with `--tag`, replace them later with `session meta --tag ...`, and remove expired sessions with `pageshelf gc`. Use `--ttl 0` only when the artifact should not expire automatically.
 
 ### `list`, `files`, and `url`
 

@@ -18,11 +18,13 @@ go build ./cmd/pageshelf
 
 ```sh
 pageshelf serve [--tailscale] [--host HOST] [--port PORT] [--unsafe-public-bind]
-pageshelf put [--session SESSION] [--stdin --name NAME | --content TEXT --name NAME | paths...] [--interactive] [--raw] [--json] [--host HOST --port PORT | --tailscale | --base-url URL]
-pageshelf session create [name] [--json]
+pageshelf put [--session SESSION] [--stdin --name NAME | --content TEXT --name NAME | paths...] [--interactive] [--raw] [--tag TAG] [--ttl 14d] [--expires-at RFC3339|YYYY-MM-DD] [--json] [--host HOST --port PORT | --tailscale | --base-url URL]
+pageshelf session create [name] [--tag TAG] [--ttl 14d] [--expires-at RFC3339|YYYY-MM-DD] [--json]
 pageshelf session info <session> [--json]
+pageshelf session meta <session> [--tag TAG | --clear-tags] [--ttl DURATION | --expires-at RFC3339|YYYY-MM-DD] [--json]
 pageshelf session rm <session>
 pageshelf list [--json]
+pageshelf gc [--dry-run] [--json]
 pageshelf files <session> [--json]
 pageshelf url <session> [path] [--json] [--host HOST --port PORT | --tailscale | --base-url URL]
 ```
@@ -49,6 +51,8 @@ Install or copy that skill into an agent skill directory when you want agents to
 - `put` and `url` print localhost URLs by default, or can generate URLs with `--host/--port`, `--tailscale`, or `--base-url`.
 - With `--tailscale`, URL generation prefers the local MagicDNS name from `hostname -f` or `tailscale status --json` (for example `omarchy-1.tailaf73.ts.net`) and falls back to the raw Tailscale IP.
 - Each session has a random `psr_...` read token. The manifest stores only a SHA-256 hash; the plaintext token is stored in a local `0600` token file so the CLI can later reconstruct URLs.
+- Each session manifest includes metadata: `created_at`, `updated_at`, `expires_at`, and optional normalized `tags`.
+- New sessions default to `--ttl 14d`. Use `--ttl 0` for no expiry, `--expires-at` for a fixed deletion-eligible timestamp, and `pageshelf gc` to delete expired sessions later.
 - Artifact paths reject absolute paths, `..`, backslashes and NUL bytes.
 - Symlink inputs are rejected.
 - CSP safe mode uses `default-src 'none'` and `script-src 'none'`. `--interactive` permits self/inline scripts but keeps `connect-src 'none'`.

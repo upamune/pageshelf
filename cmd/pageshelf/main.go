@@ -14,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 type CLI struct {
@@ -24,6 +25,7 @@ type CLI struct {
 	List    ListCmd    `cmd:""`
 	Files   FilesCmd   `cmd:""`
 	URL     URLCmd     `cmd:""`
+	GC      GCCmd      `cmd:"" help:"Remove expired sessions."`
 }
 type Ctx struct{ Store *store.Store }
 type ServeCmd struct {
@@ -38,7 +40,10 @@ type PutCmd struct {
 	Name        string
 	Content     string
 	Interactive bool
-	Raw         bool `help:"Store Markdown files as-is instead of rendering .md/.markdown to HTML."`
+	Raw         bool     `help:"Store Markdown files as-is instead of rendering .md/.markdown to HTML."`
+	Tag         []string `name:"tag" short:"t" help:"Tag for the session. Repeat or use comma-separated values."`
+	TTL         string   `default:"14d" help:"Session retention duration, e.g. 14d, 48h, 0 for no expiry."`
+	ExpiresAt   string   `name:"expires-at" help:"Explicit expiry timestamp (RFC3339) or date (YYYY-MM-DD)."`
 	JSON        bool
 	Host        string   `default:"127.0.0.1" help:"Host to use when printing the artifact URL."`
 	Port        int      `default:"8787" help:"Port to use when printing the artifact URL."`
@@ -49,15 +54,28 @@ type PutCmd struct {
 type SessionCmd struct {
 	Create SessionCreateCmd `cmd:""`
 	Info   SessionInfoCmd   `cmd:""`
+	Meta   SessionMetaCmd   `cmd:"" help:"Update session metadata."`
 	Rm     SessionRmCmd     `cmd:""`
 }
 type SessionCreateCmd struct {
-	Name string `arg:"" optional:""`
-	JSON bool
+	Name      string   `arg:"" optional:""`
+	Tag       []string `name:"tag" short:"t" help:"Tag for the session. Repeat or use comma-separated values."`
+	TTL       string   `default:"14d" help:"Session retention duration, e.g. 14d, 48h, 0 for no expiry."`
+	ExpiresAt string   `name:"expires-at" help:"Explicit expiry timestamp (RFC3339) or date (YYYY-MM-DD)."`
+	JSON      bool
 }
 type SessionInfoCmd struct {
 	Session string `arg:""`
 	JSON    bool
+}
+
+type SessionMetaCmd struct {
+	Session   string   `arg:""`
+	Tag       []string `name:"tag" short:"t" help:"Replace tags. Repeat or use comma-separated values."`
+	ClearTags bool     `name:"clear-tags" help:"Remove all tags."`
+	TTL       string   `help:"Set expiry relative to now, e.g. 14d, 48h, 0 for no expiry."`
+	ExpiresAt string   `name:"expires-at" help:"Set explicit expiry timestamp (RFC3339) or date (YYYY-MM-DD)."`
+	JSON      bool
 }
 type SessionRmCmd struct {
 	Session string `arg:""`
@@ -75,6 +93,10 @@ type URLCmd struct {
 	Port      int    `default:"8787" help:"Port to use in the URL."`
 	Tailscale bool   `help:"Use detected Tailscale IP in the URL."`
 	BaseURL   string `name:"base-url" help:"Base URL to use instead of host/port."`
+}
+type GCCmd struct {
+	DryRun bool `name:"dry-run" help:"List expired sessions without deleting them."`
+	JSON   bool
 }
 
 func main() {
@@ -125,7 +147,11 @@ func (c *ServeCmd) Run(ctx *Ctx) error {
 	return server.ListenAndServe(net.JoinHostPort(h, fmt.Sprint(c.Port)), ctx.Store)
 }
 func (c *SessionCreateCmd) Run(ctx *Ctx) error {
-	m, t, e := ctx.Store.Create(c.Name, c.Name, false)
+	ttl, expiresAt, e := parseRetention(c.TTL, c.ExpiresAt)
+	if e != nil {
+		return e
+	}
+	m, t, e := ctx.Store.CreateWithOptions(store.CreateOptions{Name: c.Name, Slug: c.Name, Tags: c.Tag, TTL: ttl, ExpiresAt: expiresAt})
 	if e != nil {
 		return e
 	}
@@ -145,7 +171,42 @@ func (c *SessionInfoCmd) Run(ctx *Ctx) error {
 	if c.JSON {
 		printJSON(m)
 	} else {
-		fmt.Printf("%s (%d files)\n", m.ID, len(m.Files))
+		fmt.Printf("%s (%d files)\ttags=%s\texpires_at=%s\n", m.ID, len(m.Files), strings.Join(m.Tags, ","), formatTime(m.ExpiresAt))
+	}
+	return nil
+}
+func (c *SessionMetaCmd) Run(ctx *Ctx) error {
+	var tags []string
+	var tagPtr []string
+	if c.ClearTags {
+		tagPtr = []string{}
+	} else if len(c.Tag) > 0 {
+		tags = c.Tag
+		tagPtr = tags
+	}
+	var expiresPtr *time.Time
+	if c.TTL != "" || c.ExpiresAt != "" {
+		ttl, expiresAt, e := parseRetention(c.TTL, c.ExpiresAt)
+		if e != nil {
+			return e
+		}
+		if expiresAt.IsZero() {
+			if ttl < 0 {
+				expiresAt = time.Time{}
+			} else {
+				expiresAt = time.Now().Add(ttl)
+			}
+		}
+		expiresPtr = &expiresAt
+	}
+	m, e := ctx.Store.UpdateMetadata(c.Session, tagPtr, expiresPtr)
+	if e != nil {
+		return e
+	}
+	if c.JSON {
+		printJSON(m)
+	} else {
+		fmt.Printf("%s\ttags=%s\texpires_at=%s\n", m.ID, strings.Join(m.Tags, ","), formatTime(m.ExpiresAt))
 	}
 	return nil
 }
@@ -159,7 +220,7 @@ func (c *ListCmd) Run(ctx *Ctx) error {
 		printJSON(xs)
 	} else {
 		for _, m := range xs {
-			fmt.Printf("%s\t%d files\n", m.ID, len(m.Files))
+			fmt.Printf("%s\t%d files\ttags=%s\texpires_at=%s\n", m.ID, len(m.Files), strings.Join(m.Tags, ","), formatTime(m.ExpiresAt))
 		}
 	}
 	return nil
@@ -203,7 +264,11 @@ func (c *PutCmd) Run(ctx *Ctx) error {
 	}
 	var tok string
 	if sid == "" {
-		m, t, e := ctx.Store.Create("", slug, c.Interactive)
+		ttl, expiresAt, e := parseRetention(c.TTL, c.ExpiresAt)
+		if e != nil {
+			return e
+		}
+		m, t, e := ctx.Store.CreateWithOptions(store.CreateOptions{Name: "", Slug: slug, Interactive: c.Interactive, Tags: c.Tag, TTL: ttl, ExpiresAt: expiresAt})
 		if e != nil {
 			return e
 		}
@@ -265,6 +330,61 @@ func (c *PutCmd) Run(ctx *Ctx) error {
 	}
 	return nil
 }
+func (c *GCCmd) Run(ctx *Ctx) error {
+	res, e := ctx.Store.GC(time.Now(), c.DryRun)
+	if e != nil {
+		return e
+	}
+	if c.JSON {
+		printJSON(res)
+	} else {
+		verb := "removed"
+		if c.DryRun {
+			verb = "would remove"
+		}
+		fmt.Printf("%s %d expired sessions\n", verb, len(res.Removed))
+		for _, id := range res.Removed {
+			fmt.Println(id)
+		}
+	}
+	return nil
+}
+
+func parseRetention(ttlText, expiresText string) (time.Duration, time.Time, error) {
+	if expiresText != "" {
+		if t, err := time.Parse(time.RFC3339, expiresText); err == nil {
+			return 0, t, nil
+		}
+		if t, err := time.Parse("2006-01-02", expiresText); err == nil {
+			return 0, t, nil
+		}
+		return 0, time.Time{}, fmt.Errorf("invalid --expires-at %q", expiresText)
+	}
+	if ttlText == "" {
+		return 0, time.Time{}, nil
+	}
+	if ttlText == "0" || ttlText == "none" || ttlText == "never" {
+		return -1, time.Time{}, nil
+	}
+	if strings.HasSuffix(ttlText, "d") {
+		daysText := strings.TrimSuffix(ttlText, "d")
+		days, err := time.ParseDuration(daysText + "h")
+		if err != nil {
+			return 0, time.Time{}, err
+		}
+		return days * 24, time.Time{}, nil
+	}
+	d, err := time.ParseDuration(ttlText)
+	return d, time.Time{}, err
+}
+
+func formatTime(t time.Time) string {
+	if t.IsZero() {
+		return "never"
+	}
+	return t.Format(time.RFC3339)
+}
+
 func preferredPutURLPath(paths []string) string {
 	if len(paths) == 0 {
 		return "index.html"
