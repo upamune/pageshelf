@@ -1,63 +1,314 @@
 # pageshelf
 
-pageshelf v0.2 is a small, security-first Go CLI for publishing agent-generated HTML artifacts (plans, research notes, PR explainers) to a local or Tailscale-only web server.
+A tiny, security-first shelf for agent-generated HTML artifacts.
 
-Artifact URLs intentionally avoid the product name and use `/a/:session_id/:path`:
+Pageshelf is a Go CLI + static web server for the stuff that does not fit well in chat: long plans, research reports, PR explainers, diagrams, annotated diffs, and small interactive review pages. It is built for local-first agent workflows and private Tailscale sharing, not for public hosting.
+
+Artifact URLs intentionally use short `/a/...` paths instead of exposing the product name:
 
 ```text
 http://100.x.y.z:8787/a/20260510-0924-artifact-7k3p/index.html?t=psr_xxx
 ```
 
-## Install / build
+## Why
+
+Markdown is portable, but it gets painful once an agent output needs:
+
+- dense tables and visual hierarchy
+- SVG diagrams or architecture sketches
+- annotated code snippets and diffs
+- tabs, sliders, copy buttons, or throwaway editors
+- mobile-readable long-form reports
+
+Pageshelf lets an agent generate a real HTML artifact, store it in a session, and hand back a private URL instead of dumping a giant Markdown wall into Telegram, Slack, or a PR comment.
+
+## Install
+
+Build from source:
 
 ```sh
-go build ./cmd/pageshelf
+go build -o pageshelf ./cmd/pageshelf
 ```
 
-## Usage
+Or install directly from the repo:
+
+```sh
+go install github.com/upamune/pageshelf/cmd/pageshelf@latest
+```
+
+Storage defaults to:
+
+```text
+~/.local/share/pageshelf
+```
+
+Override it with either:
+
+```sh
+pageshelf --data-dir ./tmp/pageshelf ...
+PAGESHELF_DATA_DIR=./tmp/pageshelf pageshelf ...
+```
+
+## Quick start
+
+Start the server locally:
+
+```sh
+pageshelf serve
+```
+
+Publish an HTML file:
+
+```sh
+pageshelf put index.html
+```
+
+Typical output:
+
+```text
+session: 20260510-0924-artifact-7k3p
+url: http://127.0.0.1:8787/a/20260510-0924-artifact-7k3p/index.html?t=psr_xxx
+```
+
+For private tailnet sharing:
+
+```sh
+pageshelf serve --tailscale
+pageshelf put --tailscale index.html
+```
+
+## Common workflows
+
+### Publish a long agent report
+
+```sh
+pageshelf put --tailscale report.html
+```
+
+### Publish Markdown as HTML
+
+Markdown is rendered to HTML by default:
+
+```sh
+pageshelf put research.md
+```
+
+`research.md` is stored and linked as `research.html`. Use `--raw` only when you want to serve the Markdown file itself:
+
+```sh
+pageshelf put --raw research.md
+```
+
+### Publish from stdin
+
+```sh
+cat report.html | pageshelf put --stdin --name index.html --tailscale
+```
+
+### Publish inline content
+
+```sh
+pageshelf put --content '<!doctype html><h1>Hello</h1>' --name index.html
+```
+
+### Add files to an existing session
+
+```sh
+pageshelf put --session pr-review index.html assets/
+```
+
+If `--session` is omitted, `put` creates a new session automatically.
+
+### Publish an interactive artifact
+
+Safe mode disables JavaScript. Use `--interactive` when the page intentionally needs local JS for tabs, sliders, copy buttons, animations, or custom editors:
+
+```sh
+pageshelf put --interactive --tailscale index.html assets/
+```
+
+### Generate a URL later
+
+```sh
+pageshelf url 20260510-0924-artifact-7k3p
+pageshelf url --tailscale 20260510-0924-artifact-7k3p diagram.html
+pageshelf url --base-url http://agent-box:8787 20260510-0924-artifact-7k3p
+```
+
+## Commands
 
 ```sh
 pageshelf serve [--tailscale] [--host HOST] [--port PORT] [--unsafe-public-bind]
-pageshelf put [--session SESSION] [--stdin --name NAME | --content TEXT --name NAME | paths...] [--interactive] [--raw] [--tag TAG] [--ttl 14d] [--expires-at RFC3339|YYYY-MM-DD] [--json] [--host HOST --port PORT | --tailscale | --base-url URL]
+
+pageshelf put [--session SESSION]
+              [--stdin --name NAME | --content TEXT --name NAME | paths...]
+              [--interactive]
+              [--raw]
+              [--no-secret-scan]
+              [--tag TAG]
+              [--ttl 14d]
+              [--expires-at RFC3339|YYYY-MM-DD]
+              [--json]
+              [--host HOST --port PORT | --tailscale | --base-url URL]
+
 pageshelf session create [name] [--tag TAG] [--ttl 14d] [--expires-at RFC3339|YYYY-MM-DD] [--json]
 pageshelf session info <session> [--json]
 pageshelf session meta <session> [--tag TAG | --clear-tags] [--ttl DURATION | --expires-at RFC3339|YYYY-MM-DD] [--json]
 pageshelf session rm <session>
+
 pageshelf list [--json]
-pageshelf gc [--dry-run] [--json]
 pageshelf files <session> [--json]
 pageshelf url <session> [path] [--json] [--host HOST --port PORT | --tailscale | --base-url URL]
+pageshelf gc [--dry-run] [--json]
 ```
 
-Storage defaults to `~/.local/share/pageshelf`; override with `--data-dir` or `PAGESHELF_DATA_DIR`.
+Run `pageshelf <command> --help` for command-specific flags.
 
-## Agent skill
+## Sessions and retention
 
-This repository ships a Hermes-style agent skill at:
+A session is a directory of files plus metadata.
+
+- Session IDs are safe slugs, usually auto-generated by `put`.
+- New sessions default to `--ttl 14d`.
+- Use `--ttl 0` for no automatic expiry.
+- Use `--expires-at` for a fixed expiry timestamp or date.
+- Use `pageshelf gc --dry-run` to preview expired sessions.
+- Use `pageshelf gc` to delete expired sessions.
+- Tags can be set with `--tag` and replaced later with `session meta`.
+
+Examples:
+
+```sh
+pageshelf session create rate-limiter --tag backend --tag explainer --ttl 7d
+pageshelf session info rate-limiter
+pageshelf session meta rate-limiter --tag pr-review --ttl 14d
+pageshelf gc --dry-run
+```
+
+## Security model
+
+Pageshelf assumes artifacts are private, local/tailnet-readable files. It is intentionally conservative.
+
+Default protections:
+
+- binds to `127.0.0.1` by default
+- `--tailscale` binds to a detected `100.64.0.0/10` Tailscale address
+- wildcard/public binds require `--unsafe-public-bind`
+- artifact URLs require a random `psr_...` read token
+- only a SHA-256 token hash is stored in the manifest
+- plaintext read tokens are kept in local `0600` token files for URL regeneration
+- absolute paths, `..`, backslashes, and NUL bytes are rejected
+- symlink inputs are rejected
+- `Cache-Control: no-store`
+- `X-Content-Type-Options: nosniff`
+- `Referrer-Policy: no-referrer`
+- `X-Frame-Options: DENY`
+- COOP/CORP and restrictive Permissions-Policy headers
+
+Safe CSP mode disables scripts:
+
+```http
+script-src 'none'
+connect-src 'none'
+```
+
+Interactive mode allows local/inline scripts but still blocks network access:
+
+```http
+script-src 'self' 'unsafe-inline'
+connect-src 'none'
+```
+
+## Secret scanning
+
+`pageshelf put` scans inputs with Gitleaks by default before storing content.
+
+It scans:
+
+- file paths
+- directories
+- stdin content
+- `--content` strings
+
+If a secret-like value is detected, Pageshelf blocks the write and reports the rule, file, and line without printing the secret value.
+
+Bypass only when you are sure the artifact is safe:
+
+```sh
+pageshelf put --no-secret-scan index.html
+```
+
+Tailnet URLs are still shareable URLs. Do not publish credentials, private keys, production `.env` files, raw tokens, or confidential dumps.
+
+## URL behavior
+
+`put` returns the URL for the artifact it actually added:
+
+- `pageshelf put foo.html` returns `/foo.html`
+- `pageshelf put index.html` returns `/index.html`
+- `pageshelf put report.md` returns `/report.html`
+- `pageshelf put --raw report.md` returns `/report.md`
+- multi-file uploads prefer `index.html` when present
+- otherwise multi-file uploads return the first added file
+
+URL generation defaults to localhost. Use one of these when the server is elsewhere:
+
+```sh
+pageshelf put --host 100.88.12.34 --port 8787 index.html
+pageshelf put --tailscale index.html
+pageshelf put --base-url http://agent-box:8787 index.html
+```
+
+With `--tailscale`, Pageshelf prefers MagicDNS when available and falls back to the raw Tailscale IP.
+
+## Agent usage
+
+This repo includes a Hermes-style skill for teaching agents the preferred workflow:
 
 ```text
 skills/devops/pageshelf/SKILL.md
 ```
 
-Install or copy that skill into an agent skill directory when you want agents to know the preferred pageshelf workflow: create/publish HTML artifacts, use Tailscale URLs, avoid leaking secrets, and return short chat summaries instead of long Markdown dumps.
+Use that skill when an agent should:
 
-## Security model
+- create HTML instead of long Markdown
+- publish artifacts through Pageshelf
+- use Tailscale URLs for private sharing
+- keep chat responses short
+- avoid leaking secrets
+- choose safe vs interactive mode intentionally
 
-- Server binds to `127.0.0.1` by default.
-- `--tailscale` binds to a detected `100.64.0.0/10` address.
-- Empty host, `0.0.0.0`, and `::` public binds are rejected unless `--unsafe-public-bind` is supplied.
-- `put` returns a URL for the artifact it actually added: a single `foo.html` returns `foo.html`; multi-file uploads prefer `index.html` when present, otherwise the first added file.
-- `put` renders Markdown inputs by default: `report.md` becomes `report.html`, `index.md` becomes `index.html`, and the returned URL points at the generated HTML. Use `--raw` to serve `.md`/`.markdown` files as literal Markdown files instead.
-- `put` and `url` print localhost URLs by default, or can generate URLs with `--host/--port`, `--tailscale`, or `--base-url`.
-- With `--tailscale`, URL generation prefers the local MagicDNS name from `hostname -f` or `tailscale status --json` (for example `omarchy-1.tailaf73.ts.net`) and falls back to the raw Tailscale IP.
-- Each session has a random `psr_...` read token. The manifest stores only a SHA-256 hash; the plaintext token is stored in a local `0600` token file so the CLI can later reconstruct URLs.
-- Each session manifest includes metadata: `created_at`, `updated_at`, `expires_at`, and optional normalized `tags`.
-- New sessions default to `--ttl 14d`. Use `--ttl 0` for no expiry, `--expires-at` for a fixed deletion-eligible timestamp, and `pageshelf gc` to delete expired sessions later.
-- Artifact paths reject absolute paths, `..`, backslashes and NUL bytes.
-- Symlink inputs are rejected.
-- CSP safe mode uses `default-src 'none'` and `script-src 'none'`. `--interactive` permits self/inline scripts but keeps `connect-src 'none'`.
-- Security headers include no-store cache control, DENY framing, nosniff, no-referrer, COOP, CORP, and Permissions-Policy.
+A good agent handoff looks like this:
+
+```text
+詳細HTML作った:
+http://100.x.y.z:8787/a/.../index.html?t=psr_xxx
+
+中身:
+- architecture diagram
+- implementation plan
+- risk checklist
+```
+
+## Development
+
+The default Make target is help:
+
+```sh
+make
+```
+
+Targets:
+
+```sh
+make fmt    # format with golangci-lint/gofumpt
+make lint   # run golangci-lint, including revive
+make test   # run go test ./...
+make ci     # format check, lint, and tests
+```
+
+GitHub Actions runs the same quality gate on `main`. Workflow actions are SHA-pinned.
 
 ## License
 
-MIT
+MIT © 2026 Yu SERIZAWA
