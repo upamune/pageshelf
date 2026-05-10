@@ -8,10 +8,11 @@
   <meta name="theme-color" content="#FFF7ED">
   <meta property="og:title" content="Pageshelf">
   <meta property="og:description" content="Private HTML shelves for AI-generated artifacts.">
-  <meta property="og:image" content="assets/pageshelf-logo.png">
+  <meta property="og:image" content="assets/pageshelf-logo-1280.png">
   <meta property="og:type" content="website">
-  <link rel="icon" type="image/png" href="assets/pageshelf-icon.png">
-  <link rel="apple-touch-icon" href="assets/pageshelf-icon.png">
+  <link rel="icon" type="image/webp" href="assets/pageshelf-icon.webp">
+  <link rel="icon" type="image/png" href="assets/pageshelf-icon-512.png">
+  <link rel="apple-touch-icon" href="assets/pageshelf-icon-512.png">
   <style>
     :root {
       --primary: #1D2356;
@@ -494,7 +495,10 @@
   <main class="page">
     <nav class="nav" aria-label="Primary">
       <a class="brand" href=".">
-        <img src="assets/pageshelf-icon.png" alt="" aria-hidden="true">
+        <picture>
+          <source srcset="assets/pageshelf-icon.webp" type="image/webp">
+          <img src="assets/pageshelf-icon-512.png" alt="" aria-hidden="true">
+        </picture>
         <span>pageshelf</span>
       </a>
       <div class="nav-links">
@@ -519,7 +523,10 @@
 
       <div class="hero-card" aria-label="Pageshelf mascot illustration">
         <div class="mascot-wrap">
-          <img src="assets/pageshelf-icon.png" alt="Pageshelf kawaii shelf-keeper mascot">
+          <picture>
+            <source srcset="assets/pageshelf-icon.webp" type="image/webp">
+            <img src="assets/pageshelf-icon-512.png" alt="Pageshelf kawaii shelf-keeper mascot">
+          </picture>
         </div>
         <div class="floating-card code">&lt;/&gt;</div>
         <div class="floating-card lock"><b>⌁</b> tokenized shelf</div>
@@ -536,7 +543,7 @@
 <span class="prompt">$</span> pageshelf put --tailscale report.html
 
 <span class="muted-code">session:</span> 20260510-0924-artifact-7k3p
-<span class="muted-code">url:</span> <span class="orange">http://100.x.y.z:8787/a/.../report.html?t=psr_xxx</span></code></pre>
+<span class="muted-code">url:</span> <span class="orange">http://example.tailnet.ts.net:8787/a/.../report.html?t=psr_xxx</span></code></pre>
       </div>
     </section>
 

@@ -17,7 +17,7 @@ Pageshelf is a tiny, security-first artifact shelf for agent-generated HTML repo
 <table>
  <tr>
    <td width="58%" align="center">
-     <img width="640" alt="Pageshelf logo" src="docs/assets/pageshelf-logo.png" />
+     <img width="640" alt="Pageshelf logo" src="docs/assets/pageshelf-logo.webp" />
      <br />
      <sub>Kawaii shelf-keeper mascot for secure HTML artifact sharing</sub>
    </td>
@@ -30,7 +30,7 @@ pageshelf put --tailscale report.html
 
 ```text
 session: 20260510-0924-artifact-7k3p
-url: http://100.x.y.z:8787/a/.../report.html?t=psr_xxx
+url: http://example.tailnet.ts.net:8787/a/.../report.html?t=psr_xxx
 ```
 
    </td>
@@ -184,7 +184,7 @@ A good agent handoff looks like this:
 
 ```text
 詳細HTML作った:
-http://100.x.y.z:8787/a/.../index.html?t=psr_xxx
+http://example.tailnet.ts.net:8787/a/.../index.html?t=psr_xxx
 
 中身:
 - architecture diagram
