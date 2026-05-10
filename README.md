@@ -353,10 +353,6 @@ connect-src 'none'
 
 Use `--interactive` only for artifacts that need browser-side behavior.
 
-### Design system
-
-Pageshelf includes an AI-readable brand and UI specification in [`DESIGN.md`](DESIGN.md). Use it when generating README artwork, landing pages, HTML artifacts, docs screenshots, or product UI.
-
 ## Development
 
 The default Make target is help:
