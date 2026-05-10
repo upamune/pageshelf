@@ -200,6 +200,88 @@ Use Pageshelf when an agent should:
 - avoid leaking secrets
 - choose safe vs interactive mode intentionally
 
+## Using with Hermes Agent
+
+Pageshelf is especially useful with [Hermes Agent](https://github.com/NousResearch/hermes-agent) on Telegram, Discord, Slack, or the terminal, where long Markdown plans and tables are hard to read. The pattern is simple: Hermes writes a rich HTML artifact, Pageshelf stores it, and the chat response stays short.
+
+### Install the Pageshelf skill for Hermes
+
+Pageshelf ships an embedded Hermes-compatible skill:
+
+```bash
+mkdir -p ~/.hermes/skills/devops/pageshelf
+pageshelf skill install ~/.hermes/skills/devops/pageshelf
+```
+
+Then load it in a Hermes session when you want artifact-first output:
+
+```text
+/skill pageshelf
+```
+
+Or start Hermes with the skill preloaded:
+
+```bash
+hermes -s pageshelf
+```
+
+### Recommended Hermes prompt
+
+```text
+Create the full plan as a polished HTML artifact using Pageshelf.
+Use DESIGN.md if this repo has one.
+Publish it with pageshelf put --tailscale.
+Reply in chat with only the Pageshelf URL and a 3-bullet summary.
+```
+
+Good fit:
+
+- implementation plans with diagrams and code snippets
+- PR explainers with annotated diffs
+- research reports with sections, cards, and tables
+- incident reports with timelines
+- interactive tuning UIs with sliders, filters, or copy buttons
+
+### Telegram-friendly handoff
+
+Instead of making Hermes send a 300-line Markdown wall to Telegram, ask it to return a compact handoff:
+
+```text
+詳細HTML作った:
+http://example.tailnet.ts.net:8787/a/.../index.html?t=psr_xxx
+
+要点:
+- architecture and data flow are diagrammed
+- risky parts are called out with severity labels
+- implementation checklist is at the bottom
+```
+
+This keeps the messaging surface readable while the full artifact stays available in a browser.
+
+### Hook-based automation
+
+Hermes can also automate this with hooks: detect generated `.html` or long `.md` files after tool calls, publish them with Pageshelf, then replace long chat output with a short URL handoff.
+
+Example shape:
+
+```yaml
+hooks:
+  post_tool_call:
+    - matcher: "write_file|patch|edit_file"
+      command: "~/.hermes/hooks/pageshelf-artifact-hook.py"
+      timeout: 60
+```
+
+A robust hook should:
+
+- fail open if Pageshelf is unavailable
+- skip `.git`, `.hermes`, `node_modules`, build directories, and secret-like dumps
+- set an env guard such as `HERMES_DISABLE_ARTIFACT_HOOK=1` if it spawns another Hermes process
+- use `pageshelf put --tailscale --json` so the URL and session can be parsed safely
+- use `--interactive` only for artifacts that intentionally need browser-side JavaScript
+
+Manual publishing is still the best starting point. Add hooks once the workflow is stable.
+
 ## Security model
 
 Pageshelf is for local and tailnet artifact sharing, not public hosting.
