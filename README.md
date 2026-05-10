@@ -266,36 +266,6 @@ A robust hook should:
 
 Manual publishing is still the best starting point. Add hooks once the workflow is stable.
 
-## Security model
-
-Pageshelf is for local and tailnet artifact sharing, not public hosting.
-
-Key protections:
-
-- tokenized read URLs
-- token hash stored in the manifest
-- local token file stored separately
-- default localhost bind
-- explicit Tailscale bind
-- wildcard bind requires `--unsafe-public-bind`
-- path traversal prevention
-- symlink rejection on input
-- restrictive CSP
-- `Cache-Control: no-store`
-- `X-Content-Type-Options: nosniff`
-- `Referrer-Policy: no-referrer`
-- `X-Frame-Options: DENY`
-
-`pageshelf put` also scans paths, directories, stdin, and `--content` strings with Gitleaks before storing artifacts. If a secret-like value is detected, Pageshelf blocks the write and reports the rule, file, and line without printing the secret value.
-
-Bypass only when you are sure the artifact is safe:
-
-```bash
-pageshelf put --no-secret-scan index.html
-```
-
-Tailnet URLs are still shareable URLs. Do not publish credentials, private keys, production `.env` files, raw tokens, or confidential dumps.
-
 ## Command reference
 
 ```bash
