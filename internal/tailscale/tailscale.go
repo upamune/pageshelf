@@ -1,3 +1,4 @@
+// Package tailscale discovers local Tailscale addresses and MagicDNS names.
 package tailscale
 
 import (
@@ -14,12 +15,14 @@ var commandOutput = func(name string, args ...string) ([]byte, error) {
 	return exec.Command(name, args...).Output()
 }
 
+// Interface describes a network interface and its addresses.
 type Interface struct {
 	Name  string
 	Flags net.Flags
 	Addrs []net.Addr
 }
 
+// CandidateIP returns the first non-loopback Tailscale IPv4 address from ifs.
 func CandidateIP(ifs []Interface) (string, error) {
 	for _, ifi := range ifs {
 		if ifi.Flags&net.FlagUp == 0 || ifi.Flags&net.FlagLoopback != 0 {
@@ -41,6 +44,7 @@ func CandidateIP(ifs []Interface) (string, error) {
 	return "", fmt.Errorf("no Tailscale 100.64.0.0/10 address found")
 }
 
+// IP returns the local Tailscale IPv4 address, if one is configured.
 func IP() (string, error) {
 	nifs, err := net.Interfaces()
 	if err != nil {

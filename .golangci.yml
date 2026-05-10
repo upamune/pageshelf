@@ -10,6 +10,7 @@ linters:
     - errorlint
     - misspell
     - nolintlint
+    - revive
     - unconvert
     - unparam
 

@@ -38,7 +38,7 @@ func TestCandidateIPRejectsOutsideRange(t *testing.T) {
 func TestMagicDNSNamePrefersHostnameFQDN(t *testing.T) {
 	old := commandOutput
 	t.Cleanup(func() { commandOutput = old })
-	commandOutput = func(name string, args ...string) ([]byte, error) {
+	commandOutput = func(name string, _ ...string) ([]byte, error) {
 		if name == "hostname" {
 			return []byte("omarchy-1.tailaf73.ts.net.\n"), nil
 		}
@@ -53,7 +53,7 @@ func TestMagicDNSNamePrefersHostnameFQDN(t *testing.T) {
 func TestMagicDNSNameFallsBackToTailscaleStatus(t *testing.T) {
 	old := commandOutput
 	t.Cleanup(func() { commandOutput = old })
-	commandOutput = func(name string, args ...string) ([]byte, error) {
+	commandOutput = func(name string, _ ...string) ([]byte, error) {
 		if name == "hostname" {
 			return []byte("omarchy\n"), nil
 		}

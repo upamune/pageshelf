@@ -1,3 +1,4 @@
+// Package server provides HTTP serving for Pageshelf artifacts.
 package server
 
 import (
@@ -13,12 +14,14 @@ import (
 	"github.com/serizawa/pageshelf/internal/store"
 )
 
+// Server serves Pageshelf artifacts over HTTP.
 type Server struct{ Store *store.Store }
 
+// Handler returns the HTTP handler for serving artifacts and health checks.
 func (s Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/a/", s.artifact)
-	health := func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusNoContent) }
+	health := func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) }
 	mux.HandleFunc("/-/healthz", health)
 	mux.HandleFunc("/healthz", health)
 	return security(mux)
@@ -72,6 +75,7 @@ func (s Server) artifact(w http.ResponseWriter, r *http.Request) {
 	http.ServeContent(w, r, meta.Path, meta.UpdatedAt, f)
 }
 
+// ListenAndServe starts the HTTP server and shuts it down on interrupt signals.
 func ListenAndServe(addr string, st *store.Store) error {
 	log.Printf("pageshelf serving on http://%s", addr)
 	srv := &http.Server{

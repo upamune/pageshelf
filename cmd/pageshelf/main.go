@@ -1,3 +1,4 @@
+// Command pageshelf manages and serves local HTML artifact sessions.
 package main
 
 import (

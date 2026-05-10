@@ -1,3 +1,4 @@
+// Package markdown renders Markdown artifacts as standalone HTML pages.
 package markdown
 
 import (
@@ -58,11 +59,13 @@ type pageData struct {
 	Body  template.HTML
 }
 
+// IsMarkdownPath reports whether path has a supported Markdown extension.
 func IsMarkdownPath(path string) bool {
 	ext := strings.ToLower(filepath.Ext(path))
 	return ext == ".md" || ext == ".markdown"
 }
 
+// HTMLPath returns the output HTML path for a Markdown artifact path.
 func HTMLPath(path string) string {
 	ext := filepath.Ext(path)
 	if ext == "" {
@@ -71,6 +74,7 @@ func HTMLPath(path string) string {
 	return strings.TrimSuffix(path, ext) + ".html"
 }
 
+// Title returns the best display title from metadata, the first H1, or fallbackName.
 func Title(source, fallbackName string, meta map[string]string) string {
 	if meta != nil {
 		if title := strings.TrimSpace(meta["title"]); title != "" {
@@ -91,6 +95,7 @@ func Title(source, fallbackName string, meta map[string]string) string {
 	return base
 }
 
+// Render converts Markdown source into a standalone HTML page.
 func Render(source []byte, name string) ([]byte, error) {
 	bodySource, meta := stripFrontmatter(source)
 	md := goldmark.New(

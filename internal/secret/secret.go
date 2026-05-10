@@ -1,3 +1,4 @@
+// Package secret scans artifact content for accidentally included secrets.
 package secret
 
 import (
@@ -62,6 +63,7 @@ type Error struct {
 	findings []report.Finding
 }
 
+// Error returns a redacted summary of detected secrets.
 func (e Error) Error() string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "secret scan blocked %s: gitleaks detected %d potential secret", e.name, len(e.findings))

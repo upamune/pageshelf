@@ -1,3 +1,4 @@
+// Package store manages persisted Pageshelf sessions and artifacts.
 package store
 
 import (
@@ -21,10 +22,14 @@ import (
 )
 
 const (
-	Version               = "0.2.0"
-	MaxFileSize     int64 = 25 << 20
-	MaxSessionFiles       = 1000
-	DefaultTTL            = 14 * 24 * time.Hour
+	// Version is the Pageshelf application version reported by the CLI.
+	Version = "0.2.0"
+	// MaxFileSize is the maximum stored artifact size in bytes.
+	MaxFileSize int64 = 25 << 20
+	// MaxSessionFiles is the maximum number of files in one session.
+	MaxSessionFiles = 1000
+	// DefaultTTL is the default session lifetime.
+	DefaultTTL = 14 * 24 * time.Hour
 )
 
 var (
@@ -32,8 +37,10 @@ var (
 	errPath = errors.New("invalid artifact path")
 )
 
+// Store provides filesystem-backed session storage.
 type Store struct{ Root string }
 
+// CreateOptions configures session creation.
 type CreateOptions struct {
 	Name        string
 	Slug        string
@@ -43,10 +50,13 @@ type CreateOptions struct {
 	ExpiresAt   time.Time
 }
 
+// GCResult summarizes garbage collection results.
 type GCResult struct {
 	Removed []string `json:"removed"`
 	Kept    int      `json:"kept"`
 }
+
+// Manifest describes a stored Pageshelf session.
 type Manifest struct {
 	ID            string    `json:"id"`
 	Name          string    `json:"name,omitempty"`
@@ -58,6 +68,8 @@ type Manifest struct {
 	ReadTokenHash string    `json:"read_token_hash"`
 	Files         []File    `json:"files"`
 }
+
+// File describes a stored artifact file.
 type File struct {
 	Path      string    `json:"path"`
 	MIME      string    `json:"mime"`
@@ -65,6 +77,7 @@ type File struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
+// DefaultDir returns the default Pageshelf data directory.
 func DefaultDir() string {
 	if v := os.Getenv("PAGESHELF_DATA_DIR"); v != "" {
 		return v
@@ -73,6 +86,7 @@ func DefaultDir() string {
 	return filepath.Join(d, ".local", "share", "pageshelf")
 }
 
+// New creates a Store rooted at root, or the default directory if root is empty.
 func New(root string) (*Store, error) {
 	if root == "" {
 		root = DefaultDir()
@@ -80,7 +94,11 @@ func New(root string) (*Store, error) {
 	s := &Store{Root: root}
 	return s, os.MkdirAll(filepath.Join(root, "sessions"), 0o700)
 }
+
+// SessionDir returns the filesystem path for a session.
 func (s *Store) SessionDir(id string) string { return filepath.Join(s.Root, "sessions", id) }
+
+// ValidateSessionID reports whether id is a valid session identifier.
 func ValidateSessionID(id string) error {
 	if !idRe.MatchString(id) || strings.Contains(id, "..") {
 		return fmt.Errorf("invalid session id")
@@ -88,6 +106,7 @@ func ValidateSessionID(id string) error {
 	return nil
 }
 
+// SafeRel normalizes p to a safe relative artifact path.
 func SafeRel(p string) (string, error) {
 	if p == "" {
 		return "index.html", nil
@@ -105,6 +124,7 @@ func SafeRel(p string) (string, error) {
 	return c, nil
 }
 
+// Slug converts s into a stable URL-safe slug.
 func Slug(s string) string {
 	s = strings.TrimSuffix(filepath.Base(s), filepath.Ext(s))
 	if s == "" || s == "index" {
@@ -133,6 +153,8 @@ func Slug(s string) string {
 	return out
 }
 func random(n int) ([]byte, error) { b := make([]byte, n); _, e := rand.Read(b); return b, e }
+
+// NewToken returns a read token and its SHA-256 hash.
 func NewToken() (string, string, error) {
 	b, e := random(32)
 	if e != nil {
@@ -143,12 +165,14 @@ func NewToken() (string, string, error) {
 	return tok, hex.EncodeToString(h[:]), nil
 }
 
+// CheckToken reports whether tok matches hash.
 func CheckToken(tok, hash string) bool {
 	h := sha256.Sum256([]byte(tok))
 	got := hex.EncodeToString(h[:])
 	return subtle.ConstantTimeCompare([]byte(got), []byte(hash)) == 1
 }
 
+// NormalizeTags canonicalizes, deduplicates, and sorts tags.
 func NormalizeTags(tags []string) []string {
 	seen := map[string]bool{}
 	out := []string{}
@@ -167,10 +191,12 @@ func NormalizeTags(tags []string) []string {
 	return out
 }
 
+// Create creates a session with the supplied basic metadata.
 func (s *Store) Create(name, slug string, interactive bool) (*Manifest, string, error) {
 	return s.CreateWithOptions(CreateOptions{Name: name, Slug: slug, Interactive: interactive})
 }
 
+// CreateWithOptions creates a session using opts.
 func (s *Store) CreateWithOptions(opts CreateOptions) (*Manifest, string, error) {
 	name := opts.Name
 	slug := opts.Slug
@@ -218,6 +244,7 @@ func (s *Store) save(m *Manifest) error {
 	return os.WriteFile(filepath.Join(dir, "manifest.json"), data, 0o600)
 }
 
+// Load reads a session manifest by ID.
 func (s *Store) Load(id string) (*Manifest, error) {
 	if e := ValidateSessionID(id); e != nil {
 		return nil, e
@@ -231,6 +258,7 @@ func (s *Store) Load(id string) (*Manifest, error) {
 	return &m, e
 }
 
+// ReadToken reads the persisted read token for a session.
 func (s *Store) ReadToken(id string) (string, error) {
 	if e := ValidateSessionID(id); e != nil {
 		return "", e
@@ -239,6 +267,7 @@ func (s *Store) ReadToken(id string) (string, error) {
 	return string(b), e
 }
 
+// Put writes an artifact file into a session.
 func (s *Store) Put(id, rel string, r io.Reader, interactive bool) (File, error) {
 	m, e := s.Load(id)
 	if e != nil {
@@ -306,6 +335,7 @@ func (s *Store) Put(id, rel string, r io.Reader, interactive bool) (File, error)
 	return fi, s.save(m)
 }
 
+// Open opens an artifact file and returns its metadata and manifest.
 func (s *Store) Open(id, rel string) (*os.File, File, *Manifest, error) {
 	m, e := s.Load(id)
 	if e != nil {
@@ -331,6 +361,7 @@ func (s *Store) Open(id, rel string) (*os.File, File, *Manifest, error) {
 	return f, meta, m, e
 }
 
+// List returns all session manifests ordered by creation time descending.
 func (s *Store) List() ([]Manifest, error) {
 	ents, e := os.ReadDir(filepath.Join(s.Root, "sessions"))
 	if e != nil {
@@ -348,6 +379,7 @@ func (s *Store) List() ([]Manifest, error) {
 	return out, nil
 }
 
+// Remove deletes a session by ID.
 func (s *Store) Remove(id string) error {
 	if e := ValidateSessionID(id); e != nil {
 		return e
@@ -355,6 +387,7 @@ func (s *Store) Remove(id string) error {
 	return os.RemoveAll(s.SessionDir(id))
 }
 
+// UpdateMetadata updates mutable session metadata.
 func (s *Store) UpdateMetadata(id string, tags []string, expiresAt *time.Time) (*Manifest, error) {
 	m, e := s.Load(id)
 	if e != nil {
@@ -372,6 +405,7 @@ func (s *Store) UpdateMetadata(id string, tags []string, expiresAt *time.Time) (
 	return m, nil
 }
 
+// GC removes expired sessions unless dryRun is true.
 func (s *Store) GC(now time.Time, dryRun bool) (GCResult, error) {
 	items, e := s.List()
 	if e != nil {
@@ -393,6 +427,7 @@ func (s *Store) GC(now time.Time, dryRun bool) (GCResult, error) {
 	return res, nil
 }
 
+// URL builds an authenticated artifact URL.
 func URL(base, session, path, token string) string {
 	if path == "" {
 		path = "index.html"
