@@ -1,4 +1,4 @@
-pageshelf
+/pageshelf
 *.test
 .DS_Store
 /dist/
