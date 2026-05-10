@@ -20,13 +20,17 @@ import (
 	"time"
 )
 
-const Version = "0.2.0"
-const MaxFileSize int64 = 25 << 20
-const MaxSessionFiles = 1000
-const DefaultTTL = 14 * 24 * time.Hour
+const (
+	Version               = "0.2.0"
+	MaxFileSize     int64 = 25 << 20
+	MaxSessionFiles       = 1000
+	DefaultTTL            = 14 * 24 * time.Hour
+)
 
-var idRe = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$`)
-var badPath = errors.New("invalid artifact path")
+var (
+	idRe    = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$`)
+	errPath = errors.New("invalid artifact path")
+)
 
 type Store struct{ Root string }
 
@@ -68,12 +72,13 @@ func DefaultDir() string {
 	d, _ := os.UserHomeDir()
 	return filepath.Join(d, ".local", "share", "pageshelf")
 }
+
 func New(root string) (*Store, error) {
 	if root == "" {
 		root = DefaultDir()
 	}
 	s := &Store{Root: root}
-	return s, os.MkdirAll(filepath.Join(root, "sessions"), 0700)
+	return s, os.MkdirAll(filepath.Join(root, "sessions"), 0o700)
 }
 func (s *Store) SessionDir(id string) string { return filepath.Join(s.Root, "sessions", id) }
 func ValidateSessionID(id string) error {
@@ -82,22 +87,24 @@ func ValidateSessionID(id string) error {
 	}
 	return nil
 }
+
 func SafeRel(p string) (string, error) {
 	if p == "" {
 		return "index.html", nil
 	}
 	if strings.ContainsAny(p, "\x00\\") || filepath.IsAbs(p) {
-		return "", badPath
+		return "", errPath
 	}
 	c := filepath.Clean(filepath.ToSlash(p))
 	if c == "." {
 		return "index.html", nil
 	}
 	if strings.HasPrefix(c, "../") || c == ".." {
-		return "", badPath
+		return "", errPath
 	}
 	return c, nil
 }
+
 func Slug(s string) string {
 	s = strings.TrimSuffix(filepath.Base(s), filepath.Ext(s))
 	if s == "" || s == "index" {
@@ -135,11 +142,13 @@ func NewToken() (string, string, error) {
 	h := sha256.Sum256([]byte(tok))
 	return tok, hex.EncodeToString(h[:]), nil
 }
+
 func CheckToken(tok, hash string) bool {
 	h := sha256.Sum256([]byte(tok))
 	got := hex.EncodeToString(h[:])
 	return subtle.ConstantTimeCompare([]byte(got), []byte(hash)) == 1
 }
+
 func NormalizeTags(tags []string) []string {
 	seen := map[string]bool{}
 	out := []string{}
@@ -189,15 +198,16 @@ func (s *Store) CreateWithOptions(opts CreateOptions) (*Manifest, string, error)
 	if e = s.save(m); e != nil {
 		return nil, "", e
 	}
-	e = os.WriteFile(filepath.Join(s.SessionDir(id), "read_token"), []byte(tok), 0600)
+	e = os.WriteFile(filepath.Join(s.SessionDir(id), "read_token"), []byte(tok), 0o600)
 	return m, tok, e
 }
+
 func (s *Store) save(m *Manifest) error {
 	if e := ValidateSessionID(m.ID); e != nil {
 		return e
 	}
 	dir := s.SessionDir(m.ID)
-	if e := os.MkdirAll(filepath.Join(dir, "files"), 0700); e != nil {
+	if e := os.MkdirAll(filepath.Join(dir, "files"), 0o700); e != nil {
 		return e
 	}
 	m.UpdatedAt = time.Now()
@@ -205,8 +215,9 @@ func (s *Store) save(m *Manifest) error {
 	if e != nil {
 		return e
 	}
-	return os.WriteFile(filepath.Join(dir, "manifest.json"), data, 0600)
+	return os.WriteFile(filepath.Join(dir, "manifest.json"), data, 0o600)
 }
+
 func (s *Store) Load(id string) (*Manifest, error) {
 	if e := ValidateSessionID(id); e != nil {
 		return nil, e
@@ -219,6 +230,7 @@ func (s *Store) Load(id string) (*Manifest, error) {
 	e = json.Unmarshal(b, &m)
 	return &m, e
 }
+
 func (s *Store) ReadToken(id string) (string, error) {
 	if e := ValidateSessionID(id); e != nil {
 		return "", e
@@ -226,6 +238,7 @@ func (s *Store) ReadToken(id string) (string, error) {
 	b, e := os.ReadFile(filepath.Join(s.SessionDir(id), "read_token"))
 	return string(b), e
 }
+
 func (s *Store) Put(id, rel string, r io.Reader, interactive bool) (File, error) {
 	m, e := s.Load(id)
 	if e != nil {
@@ -248,13 +261,13 @@ func (s *Store) Put(id, rel string, r io.Reader, interactive bool) (File, error)
 	dst := filepath.Join(s.SessionDir(id), "files", filepath.FromSlash(rel))
 	base := filepath.Join(s.SessionDir(id), "files")
 	if !strings.HasPrefix(dst, base+string(os.PathSeparator)) && dst != base {
-		return File{}, badPath
+		return File{}, errPath
 	}
-	if e = os.MkdirAll(filepath.Dir(dst), 0700); e != nil {
+	if e = os.MkdirAll(filepath.Dir(dst), 0o700); e != nil {
 		return File{}, e
 	}
 	tmp := dst + ".tmp"
-	f, e := os.OpenFile(tmp, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0600)
+	f, e := os.OpenFile(tmp, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o600)
 	if e != nil {
 		return File{}, e
 	}
@@ -264,11 +277,11 @@ func (s *Store) Put(id, rel string, r io.Reader, interactive bool) (File, error)
 		e = ce
 	}
 	if e != nil {
-		os.Remove(tmp)
+		_ = os.Remove(tmp)
 		return File{}, e
 	}
 	if n > MaxFileSize {
-		os.Remove(tmp)
+		_ = os.Remove(tmp)
 		return File{}, fmt.Errorf("file too large")
 	}
 	if e = os.Rename(tmp, dst); e != nil {
@@ -292,6 +305,7 @@ func (s *Store) Put(id, rel string, r io.Reader, interactive bool) (File, error)
 	m.Interactive = m.Interactive || interactive
 	return fi, s.save(m)
 }
+
 func (s *Store) Open(id, rel string) (*os.File, File, *Manifest, error) {
 	m, e := s.Load(id)
 	if e != nil {
@@ -316,6 +330,7 @@ func (s *Store) Open(id, rel string) (*os.File, File, *Manifest, error) {
 	f, e := os.Open(p)
 	return f, meta, m, e
 }
+
 func (s *Store) List() ([]Manifest, error) {
 	ents, e := os.ReadDir(filepath.Join(s.Root, "sessions"))
 	if e != nil {
@@ -332,6 +347,7 @@ func (s *Store) List() ([]Manifest, error) {
 	sort.Slice(out, func(i, j int) bool { return out[i].CreatedAt.After(out[j].CreatedAt) })
 	return out, nil
 }
+
 func (s *Store) Remove(id string) error {
 	if e := ValidateSessionID(id); e != nil {
 		return e

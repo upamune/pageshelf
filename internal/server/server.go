@@ -3,13 +3,14 @@ package server
 import (
 	"context"
 	"errors"
-	"github.com/serizawa/pageshelf/internal/store"
 	"log"
 	"net/http"
 	"os/signal"
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/serizawa/pageshelf/internal/store"
 )
 
 type Server struct{ Store *store.Store }
@@ -22,6 +23,7 @@ func (s Server) Handler() http.Handler {
 	mux.HandleFunc("/healthz", health)
 	return security(mux)
 }
+
 func security(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h := w.Header()
@@ -35,12 +37,14 @@ func security(next http.Handler) http.Handler {
 		next.ServeHTTP(w, r)
 	})
 }
+
 func csp(interactive bool) string {
 	if interactive {
 		return "default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
 	}
 	return "default-src 'none'; script-src 'none'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
 }
+
 func (s Server) artifact(w http.ResponseWriter, r *http.Request) {
 	parts := strings.SplitN(strings.TrimPrefix(r.URL.Path, "/a/"), "/", 2)
 	if len(parts) != 2 {
@@ -62,11 +66,12 @@ func (s Server) artifact(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	w.Header().Set("Content-Security-Policy", csp(m.Interactive))
 	w.Header().Set("Content-Type", meta.MIME)
 	http.ServeContent(w, r, meta.Path, meta.UpdatedAt, f)
 }
+
 func ListenAndServe(addr string, st *store.Store) error {
 	log.Printf("pageshelf serving on http://%s", addr)
 	srv := &http.Server{

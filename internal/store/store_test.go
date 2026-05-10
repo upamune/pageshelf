@@ -21,6 +21,7 @@ func TestSafeRelRejectsTraversal(t *testing.T) {
 		t.Fatalf("got %q %v", got, err)
 	}
 }
+
 func TestTokenHash(t *testing.T) {
 	tok, hash, err := NewToken()
 	if err != nil {
@@ -30,6 +31,7 @@ func TestTokenHash(t *testing.T) {
 		t.Fatal("token check failed")
 	}
 }
+
 func TestCreatePutLoad(t *testing.T) {
 	st, err := New(t.TempDir())
 	if err != nil {
@@ -56,10 +58,10 @@ func TestReadTokenValidatesSessionID(t *testing.T) {
 	if _, err := st.ReadToken("../evil"); err == nil {
 		t.Fatal("expected invalid session id")
 	}
-	if err := os.MkdirAll(filepath.Join(st.Root, "sessions", "ok"), 0700); err != nil {
+	if err := os.MkdirAll(filepath.Join(st.Root, "sessions", "ok"), 0o700); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(st.Root, "sessions", "ok", "read_token"), []byte("tok"), 0600); err != nil {
+	if err := os.WriteFile(filepath.Join(st.Root, "sessions", "ok", "read_token"), []byte("tok"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	got, err := st.ReadToken("ok")

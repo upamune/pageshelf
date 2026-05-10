@@ -1,0 +1,19 @@
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  default: standard
+  enable:
+    - bodyclose
+    - errorlint
+    - misspell
+    - nolintlint
+    - unconvert
+    - unparam
+
+formatters:
+  enable:
+    - gofmt
+    - gofumpt

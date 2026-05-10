@@ -1,12 +1,13 @@
 package server
 
 import (
-	"github.com/serizawa/pageshelf/internal/store"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/serizawa/pageshelf/internal/store"
 )
 
 func TestArtifactAuthAndHeaders(t *testing.T) {

@@ -55,7 +55,7 @@ func TestPutPathRendersMarkdownAndReturnsHTMLPath(t *testing.T) {
 	st, sid := newTestSession(t)
 	dir := t.TempDir()
 	mdPath := filepath.Join(dir, "report.md")
-	if err := os.WriteFile(mdPath, []byte("# Report\n\nhello"), 0600); err != nil {
+	if err := os.WriteFile(mdPath, []byte("# Report\n\nhello"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	added, err := putPath(st, sid, mdPath, false, false)
@@ -76,10 +76,13 @@ func TestPutPathRendersMarkdownAndReturnsHTMLPath(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer f.Close()
 	b, err := os.ReadFile(f.Name())
+	closeErr := f.Close()
 	if err != nil {
 		t.Fatal(err)
+	}
+	if closeErr != nil {
+		t.Fatal(closeErr)
 	}
 	if !strings.Contains(string(b), "<h1 id=\"report\">Report</h1>") {
 		t.Fatalf("rendered file missing heading:\n%s", string(b))
@@ -90,7 +93,7 @@ func TestPutPathRawMarkdownKeepsMDPath(t *testing.T) {
 	st, sid := newTestSession(t)
 	dir := t.TempDir()
 	mdPath := filepath.Join(dir, "report.md")
-	if err := os.WriteFile(mdPath, []byte("# Report\n"), 0600); err != nil {
+	if err := os.WriteFile(mdPath, []byte("# Report\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	added, err := putPath(st, sid, mdPath, false, true)
@@ -116,7 +119,7 @@ func TestPutSecretScanDefaultBlocksFileBeforeSessionCreate(t *testing.T) {
 	}
 	dir := t.TempDir()
 	secretPath := filepath.Join(dir, "secret.txt")
-	if err := os.WriteFile(secretPath, []byte("key="+testSecret+"\n"), 0600); err != nil {
+	if err := os.WriteFile(secretPath, []byte("key="+testSecret+"\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	err = (&PutCmd{Paths: []string{secretPath}}).Run(&Ctx{Store: st})
@@ -139,7 +142,7 @@ func TestPutNoSecretScanAllowsSecretFile(t *testing.T) {
 	st, sid := newTestSession(t)
 	dir := t.TempDir()
 	secretPath := filepath.Join(dir, "secret.txt")
-	if err := os.WriteFile(secretPath, []byte("key="+testSecret+"\n"), 0600); err != nil {
+	if err := os.WriteFile(secretPath, []byte("key="+testSecret+"\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	items, err := (&PutCmd{NoSecretScan: true, Paths: []string{secretPath}}).collectPutItems()
@@ -157,10 +160,10 @@ func TestPutNoSecretScanAllowsSecretFile(t *testing.T) {
 func TestPutSecretScanBlocksNestedDirectorySecret(t *testing.T) {
 	dir := t.TempDir()
 	nested := filepath.Join(dir, "nested")
-	if err := os.Mkdir(nested, 0700); err != nil {
+	if err := os.Mkdir(nested, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(nested, "secret.md"), []byte("# Leak\n\n"+testSecret+"\n"), 0600); err != nil {
+	if err := os.WriteFile(filepath.Join(nested, "secret.md"), []byte("# Leak\n\n"+testSecret+"\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	_, err := (&PutCmd{Paths: []string{dir}}).collectPutItems()

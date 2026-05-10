@@ -4,18 +4,19 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/alecthomas/kong"
-	mdrender "github.com/serizawa/pageshelf/internal/markdown"
-	"github.com/serizawa/pageshelf/internal/secret"
-	"github.com/serizawa/pageshelf/internal/server"
-	"github.com/serizawa/pageshelf/internal/store"
-	"github.com/serizawa/pageshelf/internal/tailscale"
 	"io"
 	"net"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/alecthomas/kong"
+	mdrender "github.com/serizawa/pageshelf/internal/markdown"
+	"github.com/serizawa/pageshelf/internal/secret"
+	"github.com/serizawa/pageshelf/internal/server"
+	"github.com/serizawa/pageshelf/internal/store"
+	"github.com/serizawa/pageshelf/internal/tailscale"
 )
 
 type CLI struct {
@@ -28,13 +29,16 @@ type CLI struct {
 	URL     URLCmd     `cmd:""`
 	GC      GCCmd      `cmd:"" help:"Remove expired sessions."`
 }
-type Ctx struct{ Store *store.Store }
-type ServeCmd struct {
-	Tailscale        bool   `help:"Bind to detected Tailscale IP."`
-	Host             string `default:"127.0.0.1"`
-	Port             int    `default:"8787"`
-	UnsafePublicBind bool
-}
+type (
+	Ctx      struct{ Store *store.Store }
+	ServeCmd struct {
+		Tailscale        bool   `help:"Bind to detected Tailscale IP."`
+		Host             string `default:"127.0.0.1"`
+		Port             int    `default:"8787"`
+		UnsafePublicBind bool
+	}
+)
+
 type PutCmd struct {
 	Session      string `short:"s"`
 	Stdin        bool
@@ -82,11 +86,14 @@ type SessionMetaCmd struct {
 type SessionRmCmd struct {
 	Session string `arg:""`
 }
-type ListCmd struct{ JSON bool }
-type FilesCmd struct {
-	Session string `arg:""`
-	JSON    bool
-}
+type (
+	ListCmd  struct{ JSON bool }
+	FilesCmd struct {
+		Session string `arg:""`
+		JSON    bool
+	}
+)
+
 type URLCmd struct {
 	Session   string `arg:""`
 	Path      string `arg:"" optional:"" default:"index.html"`
@@ -113,6 +120,7 @@ func printJSON(v any) { b, _ := json.MarshalIndent(v, "", "  "); fmt.Println(str
 func baseURL(host string, port int) string {
 	return fmt.Sprintf("http://%s", net.JoinHostPort(host, fmt.Sprint(port)))
 }
+
 func publicBaseURL(host string, port int, useTS bool, explicit string) (string, error) {
 	if explicit != "" {
 		return strings.TrimRight(explicit, "/"), nil
@@ -130,10 +138,12 @@ func publicBaseURL(host string, port int, useTS bool, explicit string) (string, 
 	}
 	return baseURL(host, port), nil
 }
+
 func isPublicBind(h string) bool {
 	h = strings.TrimSpace(strings.Trim(h, "[]"))
 	return h == "" || h == "0.0.0.0" || h == "::"
 }
+
 func (c *ServeCmd) Run(ctx *Ctx) error {
 	h := c.Host
 	if c.Tailscale {
@@ -148,6 +158,7 @@ func (c *ServeCmd) Run(ctx *Ctx) error {
 	}
 	return server.ListenAndServe(net.JoinHostPort(h, fmt.Sprint(c.Port)), ctx.Store)
 }
+
 func (c *SessionCreateCmd) Run(ctx *Ctx) error {
 	ttl, expiresAt, e := parseRetention(c.TTL, c.ExpiresAt)
 	if e != nil {
@@ -165,6 +176,7 @@ func (c *SessionCreateCmd) Run(ctx *Ctx) error {
 	}
 	return nil
 }
+
 func (c *SessionInfoCmd) Run(ctx *Ctx) error {
 	m, e := ctx.Store.Load(c.Session)
 	if e != nil {
@@ -177,6 +189,7 @@ func (c *SessionInfoCmd) Run(ctx *Ctx) error {
 	}
 	return nil
 }
+
 func (c *SessionMetaCmd) Run(ctx *Ctx) error {
 	var tags []string
 	var tagPtr []string
@@ -227,6 +240,7 @@ func (c *ListCmd) Run(ctx *Ctx) error {
 	}
 	return nil
 }
+
 func (c *FilesCmd) Run(ctx *Ctx) error {
 	m, e := ctx.Store.Load(c.Session)
 	if e != nil {
@@ -241,6 +255,7 @@ func (c *FilesCmd) Run(ctx *Ctx) error {
 	}
 	return nil
 }
+
 func (c *URLCmd) Run(ctx *Ctx) error {
 	tok, e := ctx.Store.ReadToken(c.Session)
 	if e != nil {
@@ -258,6 +273,7 @@ func (c *URLCmd) Run(ctx *Ctx) error {
 	}
 	return nil
 }
+
 func (c *PutCmd) Run(ctx *Ctx) error {
 	if !c.Stdin && c.Content == "" && len(c.Paths) == 0 {
 		return fmt.Errorf("provide --stdin, --content, or paths")
@@ -347,6 +363,7 @@ func (c *PutCmd) collectPutItems() ([]putItem, error) {
 	}
 	return items, nil
 }
+
 func (c *GCCmd) Run(ctx *Ctx) error {
 	res, e := ctx.Store.GC(time.Now(), c.DryRun)
 	if e != nil {
@@ -502,11 +519,14 @@ func collectPutPathItems(p string, raw bool, scan bool) ([]putItem, error) {
 	if e != nil {
 		return nil, e
 	}
-	defer f.Close()
 	name := filepath.Base(p)
-	name, data, e := preparePutContentWithSecretScan(f, name, raw, scan)
-	if e != nil {
-		return nil, e
+	name, data, prepErr := preparePutContentWithSecretScan(f, name, raw, scan)
+	closeErr := f.Close()
+	if prepErr != nil {
+		return nil, prepErr
+	}
+	if closeErr != nil {
+		return nil, closeErr
 	}
 	return []putItem{{name: name, data: data}}, nil
 }
