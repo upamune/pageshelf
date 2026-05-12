@@ -44,12 +44,13 @@ type Store struct{ Root string }
 
 // CreateOptions configures session creation.
 type CreateOptions struct {
-	Name        string
-	Slug        string
-	Interactive bool
-	Tags        []string
-	TTL         time.Duration
-	ExpiresAt   time.Time
+	Name               string
+	Slug               string
+	Interactive        bool
+	DisableAnnotations bool
+	Tags               []string
+	TTL                time.Duration
+	ExpiresAt          time.Time
 }
 
 // GCResult summarizes garbage collection results.
@@ -60,15 +61,16 @@ type GCResult struct {
 
 // Manifest describes a stored Pageshelf session.
 type Manifest struct {
-	ID            string    `json:"id"`
-	Name          string    `json:"name,omitempty"`
-	CreatedAt     time.Time `json:"created_at"`
-	UpdatedAt     time.Time `json:"updated_at"`
-	ExpiresAt     time.Time `json:"expires_at"`
-	Tags          []string  `json:"tags,omitempty"`
-	Interactive   bool      `json:"interactive"`
-	ReadTokenHash string    `json:"read_token_hash"`
-	Files         []File    `json:"files"`
+	ID                 string    `json:"id"`
+	Name               string    `json:"name,omitempty"`
+	CreatedAt          time.Time `json:"created_at"`
+	UpdatedAt          time.Time `json:"updated_at"`
+	ExpiresAt          time.Time `json:"expires_at"`
+	Tags               []string  `json:"tags,omitempty"`
+	Interactive        bool      `json:"interactive"`
+	DisableAnnotations bool      `json:"disable_annotations,omitempty"`
+	ReadTokenHash      string    `json:"read_token_hash"`
+	Files              []File    `json:"files"`
 }
 
 // File describes a stored artifact file.
@@ -222,7 +224,7 @@ func (s *Store) CreateWithOptions(opts CreateOptions) (*Manifest, string, error)
 	if e != nil {
 		return nil, "", e
 	}
-	m := &Manifest{ID: id, Name: name, CreatedAt: now, UpdatedAt: now, ExpiresAt: expiresAt, Tags: NormalizeTags(opts.Tags), Interactive: opts.Interactive, ReadTokenHash: hash}
+	m := &Manifest{ID: id, Name: name, CreatedAt: now, UpdatedAt: now, ExpiresAt: expiresAt, Tags: NormalizeTags(opts.Tags), Interactive: opts.Interactive, DisableAnnotations: opts.DisableAnnotations, ReadTokenHash: hash}
 	if e = s.save(m); e != nil {
 		return nil, "", e
 	}
@@ -267,6 +269,19 @@ func (s *Store) ReadToken(id string) (string, error) {
 	}
 	b, e := os.ReadFile(filepath.Join(s.SessionDir(id), "read_token"))
 	return string(b), e
+}
+
+// SetDisableAnnotations updates whether the annotation runtime is disabled.
+func (s *Store) SetDisableAnnotations(id string, disabled bool) (*Manifest, error) {
+	m, e := s.Load(id)
+	if e != nil {
+		return nil, e
+	}
+	m.DisableAnnotations = disabled
+	if e := s.save(m); e != nil {
+		return nil, e
+	}
+	return m, nil
 }
 
 // Put writes an artifact file into a session.

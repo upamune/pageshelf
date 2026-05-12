@@ -4,7 +4,7 @@
   <img width="720" alt="Pageshelf logo" src="docs/assets/pageshelf-logo-1280.png" />
 </p>
 
-Pageshelf is a tiny, security-first artifact shelf for agent-generated HTML reports, plans, PR explainers, diagrams, annotated diffs, and interactive review pages.
+Pageshelf is a tiny, private, review-first artifact shelf for agent-generated HTML reports, plans, PR explainers, diagrams, annotated diffs, and interactive review pages.
 
 [![CI status](https://img.shields.io/github/actions/workflow/status/upamune/pageshelf/ci.yml?branch=main&style=for-the-badge&label=CI)](https://github.com/upamune/pageshelf/actions/workflows/ci.yml?branch=main)
 [![Latest release](https://img.shields.io/github/v/release/upamune/pageshelf?style=for-the-badge)](https://github.com/upamune/pageshelf/releases)
@@ -15,6 +15,7 @@ Pageshelf is a tiny, security-first artifact shelf for agent-generated HTML repo
 - tokenized `/a/...` artifact URLs with hashed tokens in storage
 - default localhost bind, private Tailscale sharing, and guarded public binds
 - Markdown-to-HTML publishing, multi-file sessions, TTL metadata, and GC
+- default-on interactive HTML with an injected mobile-first review/annotation runtime
 - default-on Gitleaks scanning before artifacts are stored
 
 ## Install
@@ -40,6 +41,18 @@ Requirements:
 - Go 1.25+ to build from source
 - Tailscale recommended for private network sharing
 - Gitleaks is embedded through the Go dependency used by Pageshelf secret scanning
+
+## Development
+
+The HTML annotation UI is maintained as a small in-repo Vite/TypeScript web app at `internal/runtime/annotation` and managed with [aube](https://github.com/endevco/aube). Its source lives in `index.html`, `src/main.ts`, supporting `src/*.ts` modules, `src/light.css`, and `src/shadow.css`; Vite builds deterministic assets into `internal/runtime/annotation/dist/`, and the build script regenerates bundled Go asset constants in `internal/server/annotation_runtime_generated.go` so normal Go builds and CI do not need aube.
+
+After changing the annotation web app, rebuild the dist assets and generated Go source with:
+
+```bash
+make runtime-build
+```
+
+That target runs `aube install`, `aube run build`, and `gofmt` for the generated `internal/server/annotation_runtime_generated.go` file.
 
 ## Quick start
 
@@ -85,7 +98,7 @@ With `--tailscale`, Pageshelf prefers MagicDNS when available and falls back to 
 
 ## Working with artifacts
 
-Pageshelf is optimized for the agent output that does not fit well in chat: long Markdown walls, dense tables, diagrams, code-review explainers, and one-off interactive tools.
+Pageshelf is optimized for agent output that does not fit well in chat: long Markdown walls, dense tables, diagrams, code-review explainers, and review artifacts with mobile-first annotation affordances.
 
 ### Publish Markdown as HTML
 
@@ -121,13 +134,25 @@ pageshelf put --session pr-review index.html assets/
 
 If `--session` is omitted, `put` creates a new session automatically.
 
-### Publish interactive HTML
+### Publish interactive/review HTML
 
-Safe mode disables JavaScript. Use `--interactive` only when the artifact intentionally needs local JavaScript for tabs, sliders, copy buttons, animations, or custom editors:
+HTML artifacts are interactive by default; `--interactive` is kept only as a deprecated compatibility no-op. Pageshelf injects a lightweight, dependency-free annotation runtime into served HTML artifacts by default; use `--no-annotations` when creating or updating a session to opt out. The runtime uses a Shadow DOM panel for UI isolation, stores annotations in browser `localStorage` for the exact same-origin URL path, supports text selection and element picking, records quote/prefix/suffix/heading/path anchors, highlights restorable quotes with strongly prefixed light-DOM classes, and provides edit/delete/resolve controls plus **Copy annotations**, **Copy JSON**, and **Export JSON**. Treat same-origin artifact content in a session as trusted: other HTML served from the same origin/path scope can read same-origin browser storage. You can still generate pages with local JavaScript when it improves review: tabs, filters, custom copy buttons, or editors.
 
 ```bash
-pageshelf put --interactive --tailscale index.html assets/
+pageshelf put --tailscale index.html assets/
 ```
+
+### Review and annotation UX
+
+Pageshelf artifacts should be mobile-first review surfaces. For dense plans, diffs, and reports, prefer a plannotator-inspired flow:
+
+- readable single-column layout on phones, with sticky section navigation where useful
+- tap/click targets for findings, checklist rows, and code/diff locations
+- the built-in annotation/review panel that Pageshelf injects by default into served HTML artifacts
+- a generic **Copy annotations** action that copies selected locations plus reviewer comments in plain text/Markdown
+- **Copy JSON** / **Export JSON** for structured `pageshelf.annotations.v1` data when another tool should consume review notes
+- local-only review state; no automatic sending to Hermes or any other agent, so pasted handoff is an explicit user action
+- opt out with `pageshelf put --no-annotations ...` for artifacts that should receive a stricter no-script runtime policy
 
 ## Working with sessions
 
@@ -178,7 +203,7 @@ Use Pageshelf when an agent should:
 - publish artifacts through a private URL
 - keep chat responses short
 - avoid leaking secrets
-- choose safe vs interactive mode intentionally
+- make review/annotation UI easy to use on mobile
 
 ## Using with Hermes Agent
 
@@ -249,7 +274,7 @@ A robust hook should:
 - skip `.git`, `.hermes`, `node_modules`, build directories, and secret-like dumps
 - set an env guard such as `HERMES_DISABLE_ARTIFACT_HOOK=1` if it spawns another Hermes process
 - use `pageshelf put --tailscale --json` so the URL and session can be parsed safely
-- use `--interactive` only for artifacts that intentionally need browser-side JavaScript
+- do not rely on automatic agent submission; keep annotation copy/paste explicit
 
 Manual publishing is still the best starting point. Add hooks once the workflow is stable.
 
@@ -260,7 +285,8 @@ pageshelf serve [--tailscale] [--host HOST] [--port PORT] [--unsafe-public-bind]
 
 pageshelf put [--session SESSION]
               [--stdin --name NAME | --content TEXT --name NAME | paths...]
-              [--interactive]
+              [--interactive]  # deprecated no-op; HTML is interactive by default
+              [--no-annotations]
               [--raw]
               [--no-secret-scan]
               [--tag TAG]
@@ -295,7 +321,7 @@ Run `pageshelf <command> --help` for command-specific flags.
 | Default-on secret scanning | ✅ | ❌ | ❌ | ❌ |
 | TTL metadata and GC | ✅ | ❌ | ❌ | ⚠️ |
 | Agent-oriented CLI workflow | ✅ | ⚠️ | ❌ | ❌ |
-| Interactive artifact safe/unsafe switch | ✅ | ❌ | ⚠️ | ⚠️ |
+| Mobile-first review/annotation workflow | ✅ | ❌ | ⚠️ | ⚠️ |
 
 Pageshelf is optimized for private agent-to-human artifact review, not long-lived public websites.
 
@@ -335,23 +361,29 @@ pageshelf url --tailscale 20260510-0924-artifact-7k3p diagram.html
 pageshelf url --base-url http://agent-box:8787 20260510-0924-artifact-7k3p
 ```
 
-### Safe vs interactive CSP
+### CSP for private interactive artifacts
 
-Default safe mode disables scripts:
-
-```http
-script-src 'none'
-connect-src 'none'
-```
-
-Interactive mode permits inline JavaScript but still blocks network fetches:
+Pageshelf assumes artifacts are self/agent-generated private review pages, but keeps network exfiltration blocked. The default CSP allows the injected inline annotation runtime and local assets only:
 
 ```http
+default-src 'none'
 script-src 'self' 'unsafe-inline'
+style-src 'self' 'unsafe-inline'
+img-src 'self' data: blob:
+font-src 'self' data:
 connect-src 'none'
+object-src 'none'
+base-uri 'none'
+frame-ancestors 'none'
+form-action 'none'
+worker-src 'none'
+child-src 'none'
+frame-src 'none'
 ```
 
-Use `--interactive` only for artifacts that need browser-side behavior.
+With `--no-annotations`, Pageshelf skips runtime injection and serves HTML with `script-src 'none'` and `connect-src 'none'`.
+
+Tokenized URLs, local/Tailscale-first serving, path traversal prevention, symlink rejection, `no-store`, and secret scanning remain in place. Avoid remote CDNs and trackers; keep assets local to the artifact session.
 
 ## Development
 

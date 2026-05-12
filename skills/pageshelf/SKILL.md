@@ -1,6 +1,6 @@
 ---
 name: pageshelf
-description: Use when publishing agent-generated HTML artifacts, long plans, research reports, PR explainers, or interactive review pages with the pageshelf CLI. Covers secure local/Tailscale serving, session handling, URL generation, and common pitfalls.
+description: Use when publishing agent-generated HTML artifacts, long plans, research reports, PR explainers, or interactive review pages with the pageshelf CLI. Covers private local/Tailscale serving, default interactive review/annotation UX, session handling, URL generation, and common pitfalls.
 version: 1.0.0
 author: Hermes Agent
 license: MIT
@@ -14,7 +14,7 @@ metadata:
 
 ## Overview
 
-Pageshelf is a small Go CLI and secure static artifact server for agent-generated HTML. Use it when a response would be too long or visually dense for chat, Markdown, Telegram, or a PR comment. Instead of dumping a giant plan into the conversation, create an HTML artifact, put it into a pageshelf session, and return the generated URL.
+Pageshelf is a small Go CLI and private static artifact server for agent-generated HTML. Use it when a response would be too long or visually dense for chat, Markdown, Telegram, or a PR comment. Instead of dumping a giant plan into the conversation, create an HTML artifact, put it into a pageshelf session, and return the generated URL.
 
 The default workflow is intentionally low-friction for agents:
 
@@ -30,12 +30,16 @@ pageshelf serve --tailscale
 
 Pageshelf is not a general public hosting platform. Treat it as a private artifact shelf for local or tailnet use.
 
+## Development Note
+
+Pageshelf's built-in annotation UI is a normal in-repo Vite/TypeScript web app at `internal/runtime/annotation`, managed with aube. The app source is `index.html`, `src/main.ts`, supporting `src/*.ts` modules, `src/light.css`, and `src/shadow.css`; `make runtime-build` runs the Vite build into `internal/runtime/annotation/dist/` and regenerates bundled Go asset constants in `internal/server/annotation_runtime_generated.go`. Run it before testing or committing runtime changes so the binary serves the current `/_pageshelf/runtime/annotation/annotation.js` and `annotation.css` assets.
+
 ## When to Use
 
 Use pageshelf when:
 
 - A plan, report, diff explanation, architecture review, or research synthesis is too long for chat.
-- The user needs tables, SVG diagrams, color-coded sections, tabs, or interactive controls.
+- The user needs tables, SVG diagrams, color-coded sections, tabs, interactive controls, or mobile-friendly review/annotation UI.
 - Telegram or another messaging surface cannot render the information well.
 - A coding/review agent needs to attach a browsable HTML explainer to a task or PR.
 - You want the user to skim a visual artifact and keep the chat response short.
@@ -167,10 +171,10 @@ URL selection from `put`:
 Interactive HTML:
 
 ```bash
-pageshelf put --interactive index.html
+pageshelf put index.html
 ```
 
-Only use `--interactive` when the artifact needs local JavaScript for sliders, tabs, copy buttons, animations, or custom editors.
+HTML artifacts are interactive by default. `--interactive` is deprecated and only accepted as a compatibility no-op; do not add it to new examples. Served HTML gets Pageshelf's built-in annotation runtime by default; use `pageshelf put --no-annotations ...` when a session should opt out. The runtime provides a mobile-friendly Review button, Shadow DOM bottom sheet/desktop panel, annotations stored in same-origin `localStorage` for the current URL path, text-selection anchors with quote/prefix/suffix/heading/path metadata, element picking, edit/delete/resolve controls, **Copy annotations**, **Copy JSON**, and **Export JSON**. Treat same-origin artifacts in a session as trusted because browser storage is same-origin. There is no automatic sending; users explicitly copy/paste notes when they want to hand them off.
 
 ### `session`
 
@@ -219,6 +223,17 @@ pageshelf put --tailscale index.html
 ```
 
 4. Return the URL and a 3-5 bullet summary in chat.
+
+
+### Mobile-first review/annotation artifacts
+
+For plans, PR explainers, and annotated diffs, make the HTML feel like a plannotator-inspired review surface:
+
+- single-column readable layout on phones
+- large tap targets for findings, checklist rows, and code/diff locations
+- visible annotation/review panel by default when the artifact is for review
+- generic **Copy annotations**, **Copy JSON**, and **Export JSON** actions for manual handoff or tool ingestion
+- no automatic submission back to Hermes or another agent; the user explicitly pastes copied annotations
 
 ### PR explainer
 
@@ -284,29 +299,33 @@ Key protections:
 - wildcard bind requires `--unsafe-public-bind`
 - path traversal prevention
 - symlink rejection on input
-- restrictive CSP
+- tight private-artifact CSP that allows local inline annotation UI but blocks network sends
 - `Cache-Control: no-store`
 - `X-Content-Type-Options: nosniff`
 - `Referrer-Policy: no-referrer`
 - `X-Frame-Options: DENY`
 
-### Safe vs Interactive CSP
+### CSP for Private Interactive Artifacts
 
-Default safe mode disables scripts:
-
-```http
-script-src 'none'
-connect-src 'none'
-```
-
-Interactive mode permits inline JavaScript but still blocks network fetches:
+Pageshelf assumes artifacts are generated by the user or their agent for private review, but network sends remain blocked. Default served HTML CSP:
 
 ```http
+default-src 'none'
 script-src 'self' 'unsafe-inline'
+style-src 'self' 'unsafe-inline'
+img-src 'self' data: blob:
+font-src 'self' data:
 connect-src 'none'
+object-src 'none'
+base-uri 'none'
+frame-ancestors 'none'
+form-action 'none'
+worker-src 'none'
+child-src 'none'
+frame-src 'none'
 ```
 
-Use `--interactive` only for artifacts that need browser-side behavior.
+With `--no-annotations`, Pageshelf skips runtime injection and serves HTML with `script-src 'none'` and `connect-src 'none'`. Keep assets local and avoid remote trackers/CDNs. Tokenized URLs, Tailscale/local-first serving, path traversal checks, symlink rejection, no-store headers, and secret scanning still matter.
 
 ### Sensitive data rule
 
@@ -322,7 +341,7 @@ For agent-created pages:
 - Use relative asset paths for multi-file artifacts.
 - Include a short executive summary at the top.
 - Add a sticky table of contents for long reports.
-- Include copy buttons only when `--interactive` will be used.
+- Include copy buttons freely; HTML is interactive by default. For review pages, add a generic **Copy annotations** button that copies selected locations plus comments, not Hermes-specific prompts.
 - Avoid external CDNs; CSP and tailnet usage make local assets more reliable.
 - Do not embed third-party analytics, trackers, fonts, or remote scripts.
 
@@ -349,8 +368,8 @@ For Telegram handoff, keep the chat reply short:
 3. **Putting a directory with absolute asset links.**
    HTML should use relative paths like `./assets/diagram.svg`, not `/tmp/artifact/assets/diagram.svg`.
 
-4. **Using `--interactive` casually.**
-   It allows inline JavaScript. Use safe mode unless the page needs client-side behavior.
+4. **Treating `--interactive` as required.**
+   It is deprecated/no-op. Publish normal HTML and design the artifact to be interactive by default when useful.
 
 5. **Publishing secrets because the server is “only Tailscale.”**
    Tailnet access is still access. Redact or summarize sensitive content first.
@@ -372,8 +391,8 @@ After publishing an artifact:
 - [ ] The URL path uses `/a/<session>/<file>` and includes `?t=psr_...`.
 - [ ] The artifact opens successfully in a browser.
 - [ ] Wrong or missing token returns `401`.
-- [ ] Safe artifacts do not require JavaScript.
-- [ ] Interactive artifacts were published with `--interactive` intentionally.
+- [ ] Mobile review controls are reachable and readable.
+- [ ] Copy annotations is generic and copies locations plus comments for manual paste.
 - [ ] No secrets or raw credentials are present in the HTML or asset files.
 - [ ] Multi-file assets load via relative paths.
 - [ ] Chat response includes only the short summary plus URL.
@@ -402,7 +421,7 @@ HTML
 ### Publish an interactive tuning UI
 
 ```bash
-pageshelf put --interactive --tailscale index.html assets/
+pageshelf put --tailscale index.html assets/
 ```
 
 ### Regenerate a link for a different server address

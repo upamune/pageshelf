@@ -159,6 +159,35 @@ func TestPutNoSecretScanAllowsSecretFile(t *testing.T) {
 	}
 }
 
+func TestPutNoAnnotationsCreatesAndUpdatesSession(t *testing.T) {
+	st, err := store.New(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := (&PutCmd{Name: "index.html", Content: "<html><body>ok</body></html>", NoAnnotations: true, NoSecretScan: true}).Run(&Ctx{Store: st}); err != nil {
+		t.Fatal(err)
+	}
+	sessions, err := st.List()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(sessions) != 1 || !sessions[0].DisableAnnotations {
+		t.Fatalf("sessions = %#v, want disabled annotations", sessions)
+	}
+
+	st2, sid := newTestSession(t)
+	if err := (&PutCmd{Session: sid, Name: "index.html", Content: "<html><body>ok</body></html>", NoAnnotations: true, NoSecretScan: true}).Run(&Ctx{Store: st2}); err != nil {
+		t.Fatal(err)
+	}
+	m, err := st2.Load(sid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !m.DisableAnnotations {
+		t.Fatal("existing session was not updated to disable annotations")
+	}
+}
+
 func TestPutSecretScanBlocksNestedDirectorySecret(t *testing.T) {
 	dir := t.TempDir()
 	nested := filepath.Join(dir, "nested")

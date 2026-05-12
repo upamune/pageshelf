@@ -1,0 +1,19 @@
+{
+  "name": "@pageshelf/annotation-runtime",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "aube@1.11.0",
+  "scripts": {
+    "build": "tsc --noEmit && vite build && node scripts/build.mjs"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.3",
+    "vite": "^7.2.4"
+  },
+  "aube": {
+    "allowBuilds": {
+      "esbuild": true
+    }
+  }
+}

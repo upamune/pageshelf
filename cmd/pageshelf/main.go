@@ -44,22 +44,23 @@ type (
 )
 
 type PutCmd struct {
-	Session      string `short:"s"`
-	Stdin        bool
-	Name         string
-	Content      string
-	Interactive  bool
-	Raw          bool     `help:"Store Markdown files as-is instead of rendering .md/.markdown to HTML."`
-	NoSecretScan bool     `name:"no-secret-scan" help:"Disable default secret scanning before storing content."`
-	Tag          []string `name:"tag" short:"t" help:"Tag for the session. Repeat or use comma-separated values."`
-	TTL          string   `default:"14d" help:"Session retention duration, e.g. 14d, 48h, 0 for no expiry."`
-	ExpiresAt    string   `name:"expires-at" help:"Explicit expiry timestamp (RFC3339) or date (YYYY-MM-DD)."`
-	JSON         bool
-	Host         string   `default:"127.0.0.1" help:"Host to use when printing the artifact URL."`
-	Port         int      `default:"8787" help:"Port to use when printing the artifact URL."`
-	Tailscale    bool     `help:"Use detected Tailscale IP when printing the artifact URL."`
-	BaseURL      string   `name:"base-url" help:"Base URL to use when printing the artifact URL."`
-	Paths        []string `arg:"" optional:"" name:"paths"`
+	Session       string `short:"s"`
+	Stdin         bool
+	Name          string
+	Content       string
+	Interactive   bool     `help:"Deprecated no-op: HTML artifacts are interactive by default."`
+	NoAnnotations bool     `name:"no-annotations" help:"Disable the default HTML annotation runtime for this session."`
+	Raw           bool     `help:"Store Markdown files as-is instead of rendering .md/.markdown to HTML."`
+	NoSecretScan  bool     `name:"no-secret-scan" help:"Disable default secret scanning before storing content."`
+	Tag           []string `name:"tag" short:"t" help:"Tag for the session. Repeat or use comma-separated values."`
+	TTL           string   `default:"14d" help:"Session retention duration, e.g. 14d, 48h, 0 for no expiry."`
+	ExpiresAt     string   `name:"expires-at" help:"Explicit expiry timestamp (RFC3339) or date (YYYY-MM-DD)."`
+	JSON          bool
+	Host          string   `default:"127.0.0.1" help:"Host to use when printing the artifact URL."`
+	Port          int      `default:"8787" help:"Port to use when printing the artifact URL."`
+	Tailscale     bool     `help:"Use detected Tailscale IP when printing the artifact URL."`
+	BaseURL       string   `name:"base-url" help:"Base URL to use when printing the artifact URL."`
+	Paths         []string `arg:"" optional:"" name:"paths"`
 }
 type SessionCmd struct {
 	Create SessionCreateCmd `cmd:""`
@@ -365,7 +366,7 @@ func (c *PutCmd) Run(ctx *Ctx) error {
 		if e != nil {
 			return e
 		}
-		m, t, e := ctx.Store.CreateWithOptions(store.CreateOptions{Name: "", Slug: slug, Interactive: c.Interactive, Tags: c.Tag, TTL: ttl, ExpiresAt: expiresAt})
+		m, t, e := ctx.Store.CreateWithOptions(store.CreateOptions{Name: "", Slug: slug, Interactive: c.Interactive, DisableAnnotations: c.NoAnnotations, Tags: c.Tag, TTL: ttl, ExpiresAt: expiresAt})
 		if e != nil {
 			return e
 		}
@@ -376,6 +377,11 @@ func (c *PutCmd) Run(ctx *Ctx) error {
 		tok, e = ctx.Store.ReadToken(sid)
 		if e != nil {
 			return e
+		}
+		if c.NoAnnotations {
+			if _, e := ctx.Store.SetDisableAnnotations(sid, true); e != nil {
+				return e
+			}
 		}
 	}
 	added := []string{}
