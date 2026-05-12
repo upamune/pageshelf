@@ -223,7 +223,7 @@ func healthCheck(baseURL string) bool {
 	if err != nil {
 		return false
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	return resp.StatusCode == http.StatusOK
 }
 
@@ -344,7 +344,7 @@ func (c *FilesCmd) Run(ctx *Ctx) error {
 	return nil
 }
 
-func (c *URLCmd) Run(ctx *Ctx) error {
+func (c *URLCmd) Run(_ *Ctx) error {
 	b, e := publicBaseURL(c.Host, c.Port, c.Tailscale, c.BaseURL)
 	if e != nil {
 		return e
