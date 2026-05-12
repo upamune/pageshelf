@@ -3,10 +3,7 @@ package store
 
 import (
 	"crypto/rand"
-	"crypto/sha256"
-	"crypto/subtle"
 	"encoding/base64"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -44,12 +41,13 @@ type Store struct{ Root string }
 
 // CreateOptions configures session creation.
 type CreateOptions struct {
-	Name        string
-	Slug        string
-	Interactive bool
-	Tags        []string
-	TTL         time.Duration
-	ExpiresAt   time.Time
+	Name               string
+	Slug               string
+	Interactive        bool
+	DisableAnnotations bool
+	Tags               []string
+	TTL                time.Duration
+	ExpiresAt          time.Time
 }
 
 // GCResult summarizes garbage collection results.
@@ -60,15 +58,15 @@ type GCResult struct {
 
 // Manifest describes a stored Pageshelf session.
 type Manifest struct {
-	ID            string    `json:"id"`
-	Name          string    `json:"name,omitempty"`
-	CreatedAt     time.Time `json:"created_at"`
-	UpdatedAt     time.Time `json:"updated_at"`
-	ExpiresAt     time.Time `json:"expires_at"`
-	Tags          []string  `json:"tags,omitempty"`
-	Interactive   bool      `json:"interactive"`
-	ReadTokenHash string    `json:"read_token_hash"`
-	Files         []File    `json:"files"`
+	ID                 string    `json:"id"`
+	Name               string    `json:"name,omitempty"`
+	CreatedAt          time.Time `json:"created_at"`
+	UpdatedAt          time.Time `json:"updated_at"`
+	ExpiresAt          time.Time `json:"expires_at"`
+	Tags               []string  `json:"tags,omitempty"`
+	Interactive        bool      `json:"interactive"`
+	DisableAnnotations bool      `json:"disable_annotations,omitempty"`
+	Files              []File    `json:"files"`
 }
 
 // File describes a stored artifact file.
@@ -156,24 +154,6 @@ func Slug(s string) string {
 }
 func random(n int) ([]byte, error) { b := make([]byte, n); _, e := rand.Read(b); return b, e }
 
-// NewToken returns a read token and its SHA-256 hash.
-func NewToken() (string, string, error) {
-	b, e := random(32)
-	if e != nil {
-		return "", "", e
-	}
-	tok := "psr_" + base64.RawURLEncoding.EncodeToString(b)
-	h := sha256.Sum256([]byte(tok))
-	return tok, hex.EncodeToString(h[:]), nil
-}
-
-// CheckToken reports whether tok matches hash.
-func CheckToken(tok, hash string) bool {
-	h := sha256.Sum256([]byte(tok))
-	got := hex.EncodeToString(h[:])
-	return subtle.ConstantTimeCompare([]byte(got), []byte(hash)) == 1
-}
-
 // NormalizeTags canonicalizes, deduplicates, and sorts tags.
 func NormalizeTags(tags []string) []string {
 	seen := map[string]bool{}
@@ -218,16 +198,11 @@ func (s *Store) CreateWithOptions(opts CreateOptions) (*Manifest, string, error)
 	}
 	rb, _ := random(4)
 	id := now.Format("20060102-1504") + "-" + Slug(slug) + "-" + strings.ToLower(base64.RawURLEncoding.EncodeToString(rb))[:6]
-	tok, hash, e := NewToken()
-	if e != nil {
+	m := &Manifest{ID: id, Name: name, CreatedAt: now, UpdatedAt: now, ExpiresAt: expiresAt, Tags: NormalizeTags(opts.Tags), Interactive: opts.Interactive, DisableAnnotations: opts.DisableAnnotations}
+	if e := s.save(m); e != nil {
 		return nil, "", e
 	}
-	m := &Manifest{ID: id, Name: name, CreatedAt: now, UpdatedAt: now, ExpiresAt: expiresAt, Tags: NormalizeTags(opts.Tags), Interactive: opts.Interactive, ReadTokenHash: hash}
-	if e = s.save(m); e != nil {
-		return nil, "", e
-	}
-	e = os.WriteFile(filepath.Join(s.SessionDir(id), "read_token"), []byte(tok), 0o600)
-	return m, tok, e
+	return m, "", nil
 }
 
 func (s *Store) save(m *Manifest) error {
@@ -260,13 +235,17 @@ func (s *Store) Load(id string) (*Manifest, error) {
 	return &m, e
 }
 
-// ReadToken reads the persisted read token for a session.
-func (s *Store) ReadToken(id string) (string, error) {
-	if e := ValidateSessionID(id); e != nil {
-		return "", e
+// SetDisableAnnotations updates whether the annotation runtime is disabled.
+func (s *Store) SetDisableAnnotations(id string, disabled bool) (*Manifest, error) {
+	m, e := s.Load(id)
+	if e != nil {
+		return nil, e
 	}
-	b, e := os.ReadFile(filepath.Join(s.SessionDir(id), "read_token"))
-	return string(b), e
+	m.DisableAnnotations = disabled
+	if e := s.save(m); e != nil {
+		return nil, e
+	}
+	return m, nil
 }
 
 // Put writes an artifact file into a session.
@@ -429,10 +408,10 @@ func (s *Store) GC(now time.Time, dryRun bool) (GCResult, error) {
 	return res, nil
 }
 
-// URL builds an authenticated artifact URL.
-func URL(base, session, path, token string) string {
+// URL builds an artifact URL.
+func URL(base, session, path string) string {
 	if path == "" {
 		path = "index.html"
 	}
-	return strings.TrimRight(base, "/") + "/a/" + url.PathEscape(session) + "/" + strings.TrimLeft(path, "/") + "?t=" + url.QueryEscape(token)
+	return strings.TrimRight(base, "/") + "/a/" + url.PathEscape(session) + "/" + strings.TrimLeft(path, "/")
 }

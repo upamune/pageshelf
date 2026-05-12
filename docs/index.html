@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Pageshelf — private HTML shelves for agents</title>
-  <meta name="description" content="Pageshelf is a tiny, secure, local-first artifact shelf for AI-generated HTML reports, plans, PR explainers, diagrams, and interactive review pages.">
+  <meta name="description" content="Pageshelf is a tiny, private, review-first artifact shelf for AI-generated HTML reports, plans, PR explainers, diagrams, and interactive review pages.">
   <meta name="author" content="Yu SERIZAWA">
   <meta name="application-name" content="Pageshelf">
   <meta name="robots" content="index, follow">
@@ -15,7 +15,7 @@
   <meta property="og:url" content="https://upamune.github.io/pageshelf/">
   <meta property="og:site_name" content="Pageshelf">
   <meta property="og:title" content="Pageshelf — private HTML shelves for agents">
-  <meta property="og:description" content="A tiny, secure, local-first artifact shelf for AI-generated HTML reports, plans, PR explainers, diagrams, and interactive review pages.">
+  <meta property="og:description" content="A tiny, private, review-first artifact shelf for AI-generated HTML reports, plans, PR explainers, diagrams, and interactive review pages.">
   <meta property="og:image" content="https://upamune.github.io/pageshelf/assets/pageshelf-og.jpg">
   <meta property="og:image:url" content="https://upamune.github.io/pageshelf/assets/pageshelf-og.jpg">
   <meta property="og:image:secure_url" content="https://upamune.github.io/pageshelf/assets/pageshelf-og.jpg">
@@ -27,7 +27,7 @@
 
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="Pageshelf — private HTML shelves for agents">
-  <meta name="twitter:description" content="A tiny, secure, local-first artifact shelf for AI-generated HTML reports, plans, PR explainers, diagrams, and interactive review pages.">
+  <meta name="twitter:description" content="A tiny, private, review-first artifact shelf for AI-generated HTML reports, plans, PR explainers, diagrams, and interactive review pages.">
   <meta name="twitter:image" content="https://upamune.github.io/pageshelf/assets/pageshelf-og.jpg">
   <meta name="twitter:image:alt" content="Pageshelf mascot and wordmark for a secure local-first HTML artifact shelf.">
 
@@ -35,7 +35,7 @@
   <link rel="icon" type="image/png" href="assets/pageshelf-icon-512.png">
   <link rel="apple-touch-icon" href="assets/pageshelf-icon-512.png">
   <script type="application/ld+json">
-    {"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"Pageshelf","description":"A tiny, secure, local-first artifact shelf for AI-generated HTML reports, plans, PR explainers, diagrams, and interactive review pages.","url":"https://upamune.github.io/pageshelf/","codeRepository":"https://github.com/upamune/pageshelf","programmingLanguage":"Go","license":"https://github.com/upamune/pageshelf/blob/main/LICENSE","image":"https://upamune.github.io/pageshelf/assets/pageshelf-og.jpg"}
+    {"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"Pageshelf","description":"A tiny, private, review-first artifact shelf for AI-generated HTML reports, plans, PR explainers, diagrams, and interactive review pages.","url":"https://upamune.github.io/pageshelf/","codeRepository":"https://github.com/upamune/pageshelf","programmingLanguage":"Go","license":"https://github.com/upamune/pageshelf/blob/main/LICENSE","image":"https://upamune.github.io/pageshelf/assets/pageshelf-og.jpg"}
   </script>
   <style>
     :root {
@@ -536,7 +536,7 @@
       <div>
         <p class="eyebrow">local-first artifact shelf</p>
         <h1 id="hero-title">private html shelves for agents.</h1>
-        <p class="subtitle">Pageshelf turns giant agent outputs into secure, readable HTML artifacts: plans, research reports, PR explainers, annotated diffs, diagrams, and tiny interactive tools.</p>
+        <p class="subtitle">Pageshelf turns giant agent outputs into private, readable HTML artifacts: plans, research reports, PR explainers, annotated diffs, diagrams, and mobile-first interactive review pages.</p>
         <div class="actions">
           <a class="button primary" href="https://github.com/upamune/pageshelf">View on GitHub</a>
           <a class="button secondary" href="https://github.com/upamune/pageshelf/releases/latest">Download latest</a>
@@ -552,13 +552,13 @@
           </picture>
         </div>
         <div class="floating-card code">&lt;/&gt;</div>
-        <div class="floating-card lock"><b>⌁</b> tokenized shelf</div>
+        <div class="floating-card lock"><b>⌁</b> private shelf</div>
       </div>
     </section>
 
     <section class="section" id="install">
       <h2>one command, tiny shelf.</h2>
-      <p class="section-lede">Start a local server, publish an HTML file, and hand back a tokenized URL. Use Tailscale when the artifact should be readable across your private network.</p>
+      <p class="section-lede">Start a local server, publish an HTML file, and hand back a clean URL. Use Tailscale when the artifact should be readable across your private network.</p>
       <div class="code-panel">
         <div class="code-header"><span>quick start</span><span class="dots"><i></i><i></i><i></i></span></div>
         <pre><code><span class="prompt">$</span> mise use -g github:upamune/pageshelf@latest
@@ -566,7 +566,7 @@
 <span class="prompt">$</span> pageshelf put --tailscale report.html
 
 <span class="muted-code">session:</span> 20260510-0924-artifact-7k3p
-<span class="muted-code">url:</span> <span class="orange">http://example.tailnet.ts.net:8787/a/.../report.html?t=psr_xxx</span></code></pre>
+<span class="muted-code">url:</span> <span class="orange">http://example.tailnet.ts.net:8787/a/.../report.html</span></code></pre>
       </div>
     </section>
 
@@ -582,12 +582,12 @@
         <article class="feature">
           <div class="icon">&lt;/&gt;</div>
           <h3>HTML artifacts</h3>
-          <p>Store reports, PR explainers, diagrams, annotated diffs, and interactive review pages as real browser-readable files.</p>
+          <p>Store reports, PR explainers, diagrams, annotated diffs, and selection-first review pages as real browser-readable files with Shadow DOM review UI, local annotations, and generic copy/JSON export workflows.</p>
         </article>
         <article class="feature">
           <div class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 11V8a5 5 0 0 1 10 0v3"/><rect x="5" y="11" width="14" height="9" rx="3"/><path d="M12 15v2"/></svg></div>
           <h3>Private sharing</h3>
-          <p>Localhost by default, Tailscale when needed, and tokenized URLs so the shelf does not become a public hosting accident.</p>
+          <p>Localhost by default, Tailscale when needed, and guarded public binds so the shelf does not become a public hosting accident.</p>
         </article>
       </div>
     </section>

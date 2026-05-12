@@ -4,6 +4,7 @@ package server
 import (
 	"context"
 	"errors"
+	"io"
 	"log"
 	"net/http"
 	"os/signal"
@@ -20,8 +21,9 @@ type Server struct{ Store *store.Store }
 // Handler returns the HTTP handler for serving artifacts and health checks.
 func (s Server) Handler() http.Handler {
 	mux := http.NewServeMux()
+	mux.HandleFunc(annotationRuntimePath, serveAnnotationRuntimeAsset)
 	mux.HandleFunc("/a/", s.artifact)
-	health := func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) }
+	health := func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) }
 	mux.HandleFunc("/-/healthz", health)
 	mux.HandleFunc("/healthz", health)
 	return security(mux)
@@ -41,11 +43,11 @@ func security(next http.Handler) http.Handler {
 	})
 }
 
-func csp(interactive bool) string {
-	if interactive {
-		return "default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
+func csp(disableAnnotations bool) string {
+	if disableAnnotations {
+		return "default-src 'none'; script-src 'none'; style-src 'self'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'; worker-src 'none'; child-src 'none'; frame-src 'none'"
 	}
-	return "default-src 'none'; script-src 'none'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
+	return "default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'; worker-src 'none'; child-src 'none'; frame-src 'none'"
 }
 
 func (s Server) artifact(w http.ResponseWriter, r *http.Request) {
@@ -55,23 +57,33 @@ func (s Server) artifact(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id, path := parts[0], parts[1]
-	m, err := s.Store.Load(id)
-	if err != nil {
-		http.NotFound(w, r)
-		return
-	}
-	if !store.CheckToken(r.URL.Query().Get("t"), m.ReadTokenHash) {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
-		return
-	}
 	f, meta, m, err := s.Store.Open(id, path)
 	if err != nil {
 		http.NotFound(w, r)
 		return
 	}
 	defer func() { _ = f.Close() }()
-	w.Header().Set("Content-Security-Policy", csp(m.Interactive))
+	w.Header().Set("Content-Security-Policy", csp(m.DisableAnnotations))
 	w.Header().Set("Content-Type", meta.MIME)
+	if isHTML(meta.MIME, meta.Path) {
+		b, err := io.ReadAll(f)
+		if err != nil {
+			http.Error(w, "read artifact", http.StatusInternalServerError)
+			return
+		}
+		if !m.DisableAnnotations {
+			b = injectAnnotationRuntime(b)
+		}
+		w.Header().Del("Content-Length")
+		// HTML responses are rewritten in memory for annotation injection, so ServeContent
+		// cannot set validators for us. Preserve the artifact's manifest timestamp.
+		w.Header().Set("Last-Modified", meta.UpdatedAt.UTC().Format(http.TimeFormat))
+		if r.Method == http.MethodHead {
+			return
+		}
+		_, _ = w.Write(b)
+		return
+	}
 	http.ServeContent(w, r, meta.Path, meta.UpdatedAt, f)
 }
 

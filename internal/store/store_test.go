@@ -2,8 +2,6 @@ package store
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -22,24 +20,17 @@ func TestSafeRelRejectsTraversal(t *testing.T) {
 	}
 }
 
-func TestTokenHash(t *testing.T) {
-	tok, hash, err := NewToken()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.HasPrefix(tok, "psr_") || !CheckToken(tok, hash) || CheckToken(tok+"x", hash) {
-		t.Fatal("token check failed")
-	}
-}
-
 func TestCreatePutLoad(t *testing.T) {
 	st, err := New(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
 	m, tok, err := st.Create("demo", "index.html", false)
-	if err != nil || tok == "" {
+	if err != nil {
 		t.Fatal(err)
+	}
+	if tok != "" {
+		t.Fatalf("expected no read token, got %q", tok)
 	}
 	if _, err = st.Put(m.ID, "index.html", strings.NewReader("<h1>x</h1>"), false); err != nil {
 		t.Fatal(err)
@@ -47,26 +38,6 @@ func TestCreatePutLoad(t *testing.T) {
 	m, err = st.Load(m.ID)
 	if err != nil || len(m.Files) != 1 || m.Files[0].Path != "index.html" {
 		t.Fatalf("bad manifest %#v %v", m, err)
-	}
-}
-
-func TestReadTokenValidatesSessionID(t *testing.T) {
-	st, err := New(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := st.ReadToken("../evil"); err == nil {
-		t.Fatal("expected invalid session id")
-	}
-	if err := os.MkdirAll(filepath.Join(st.Root, "sessions", "ok"), 0o700); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(st.Root, "sessions", "ok", "read_token"), []byte("tok"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	got, err := st.ReadToken("ok")
-	if err != nil || got != "tok" {
-		t.Fatalf("got %q err %v", got, err)
 	}
 }
 
@@ -105,8 +76,11 @@ func TestCreateWithOptionsAddsMetadataAndDefaultExpiry(t *testing.T) {
 	}
 	before := time.Now().Add(DefaultTTL - time.Minute)
 	m, tok, err := st.CreateWithOptions(CreateOptions{Name: "demo", Slug: "demo", Tags: []string{"Plan", "agent,report", "plan"}})
-	if err != nil || tok == "" {
+	if err != nil {
 		t.Fatal(err)
+	}
+	if tok != "" {
+		t.Fatalf("expected no read token, got %q", tok)
 	}
 	if got := strings.Join(m.Tags, ","); got != "agent,plan,report" {
 		t.Fatalf("tags = %q", got)

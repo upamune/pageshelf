@@ -191,7 +191,7 @@ The visual style is soft 3D kawaii developer tooling: more like a Japanese capsu
 The core personality is:
 
 - Calm: reduce cognitive load; avoid loud contrast and visual noise.
-- Secure: imply privacy, local-first storage, tokens, and protected sharing through small lock/key/shield motifs.
+- Secure: imply privacy, local-first storage, and protected sharing through small lock/key/shield motifs.
 - Organized: every artifact has a place; layouts should feel shelf-like, gridded, and tidy.
 - Agent-friendly: patterns should be clear enough for AI agents to reproduce consistently.
 
@@ -349,7 +349,7 @@ Represents organized local storage.
 
 ### Lock Badge / Key Tag / Shield
 
-Represents privacy, tokenized sharing, or protected local access.
+Represents privacy, protected local access, or private tailnet sharing.
 
 - Prefer small badges attached to UI or mascot objects.
 - Use mint, blue, or gold accents.
@@ -410,7 +410,7 @@ Core motifs:
 - CLI Prompt: dark indigo rounded tile with light prompt mark.
 - Browser Window: rounded mini window with header dots and abstract content blocks.
 - Lock: small gold/cream lock for protected items.
-- Key Tag: mint tag with lock mark for token/private access.
+- Key Tag: mint tag with lock mark for private access.
 - Shield: soft blue shield for security status.
 - Private Network Arc: dotted lavender/blue arc, never a copied third-party network logo.
 - Home Cloud Badge: cream cloud with small blue home/cubby mark for local-first/private shelf.
@@ -453,7 +453,7 @@ The visual identity is calm and competent; copy should match.
 Good examples:
 
 - “Saved to your local shelf.”
-- “Share with a private token.”
+- “Share on a private tailnet.”
 - “Artifact is only available from this server.”
 - “Open local preview.”
 
