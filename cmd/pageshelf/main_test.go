@@ -2,6 +2,8 @@ package main
 
 import (
 	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -24,6 +26,40 @@ func newTestSession(t *testing.T) (*store.Store, string) {
 		t.Fatal(err)
 	}
 	return st, m.ID
+}
+
+func TestHealthCheck(t *testing.T) {
+	tests := []struct {
+		name   string
+		status int
+		want   bool
+	}{
+		{name: "ok", status: http.StatusOK, want: true},
+		{name: "not found", status: http.StatusNotFound, want: false},
+		{name: "server error", status: http.StatusInternalServerError, want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path != "/healthz" {
+					t.Fatalf("path = %q, want /healthz", r.URL.Path)
+				}
+				w.WriteHeader(tt.status)
+			}))
+			defer srv.Close()
+
+			if got := healthCheck(srv.URL); got != tt.want {
+				t.Fatalf("healthCheck() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestHealthCheckReturnsFalseOnConnectionFailure(t *testing.T) {
+	if healthCheck("http://127.0.0.1:1") {
+		t.Fatal("healthCheck() = true, want false")
+	}
 }
 
 func TestPreparePutContentRendersMarkdownByDefault(t *testing.T) {

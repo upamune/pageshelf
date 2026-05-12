@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -216,6 +217,16 @@ func isPublicBind(h string) bool {
 	return h == "" || h == "0.0.0.0" || h == "::"
 }
 
+func healthCheck(baseURL string) bool {
+	client := http.Client{Timeout: 750 * time.Millisecond}
+	resp, err := client.Get(strings.TrimRight(baseURL, "/") + "/healthz")
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close()
+	return resp.StatusCode == http.StatusOK
+}
+
 func (c *ServeCmd) Run(ctx *Ctx) error {
 	h := c.Host
 	if c.Tailscale {
@@ -228,7 +239,13 @@ func (c *ServeCmd) Run(ctx *Ctx) error {
 	if isPublicBind(h) && !c.UnsafePublicBind {
 		return fmt.Errorf("refusing public bind %q without --unsafe-public-bind", h)
 	}
-	return server.ListenAndServe(net.JoinHostPort(h, fmt.Sprint(c.Port)), ctx.Store)
+	addr := net.JoinHostPort(h, fmt.Sprint(c.Port))
+	url := "http://" + addr
+	if healthCheck(url) {
+		fmt.Printf("pageshelf already serving at %s\n", url)
+		return nil
+	}
+	return server.ListenAndServe(addr, ctx.Store)
 }
 
 func (c *SessionCreateCmd) Run(ctx *Ctx) error {
@@ -236,13 +253,12 @@ func (c *SessionCreateCmd) Run(ctx *Ctx) error {
 	if e != nil {
 		return e
 	}
-	m, t, e := ctx.Store.CreateWithOptions(store.CreateOptions{Name: c.Name, Slug: c.Name, Tags: c.Tag, TTL: ttl, ExpiresAt: expiresAt})
+	m, _, e := ctx.Store.CreateWithOptions(store.CreateOptions{Name: c.Name, Slug: c.Name, Tags: c.Tag, TTL: ttl, ExpiresAt: expiresAt})
 	if e != nil {
 		return e
 	}
-	out := map[string]any{"session": m, "token": t}
 	if c.JSON {
-		printJSON(out)
+		printJSON(map[string]any{"session": m})
 	} else {
 		fmt.Printf("%s\n", m.ID)
 	}
@@ -329,15 +345,11 @@ func (c *FilesCmd) Run(ctx *Ctx) error {
 }
 
 func (c *URLCmd) Run(ctx *Ctx) error {
-	tok, e := ctx.Store.ReadToken(c.Session)
-	if e != nil {
-		return e
-	}
 	b, e := publicBaseURL(c.Host, c.Port, c.Tailscale, c.BaseURL)
 	if e != nil {
 		return e
 	}
-	u := store.URL(b, c.Session, c.Path, tok)
+	u := store.URL(b, c.Session, c.Path)
 	if c.JSON {
 		printJSON(map[string]string{"url": u})
 	} else {
@@ -360,24 +372,17 @@ func (c *PutCmd) Run(ctx *Ctx) error {
 	if slug == "" && len(c.Paths) > 0 {
 		slug = c.Paths[0]
 	}
-	var tok string
 	if sid == "" {
 		ttl, expiresAt, e := parseRetention(c.TTL, c.ExpiresAt)
 		if e != nil {
 			return e
 		}
-		m, t, e := ctx.Store.CreateWithOptions(store.CreateOptions{Name: "", Slug: slug, Interactive: c.Interactive, DisableAnnotations: c.NoAnnotations, Tags: c.Tag, TTL: ttl, ExpiresAt: expiresAt})
+		m, _, e := ctx.Store.CreateWithOptions(store.CreateOptions{Name: "", Slug: slug, Interactive: c.Interactive, DisableAnnotations: c.NoAnnotations, Tags: c.Tag, TTL: ttl, ExpiresAt: expiresAt})
 		if e != nil {
 			return e
 		}
 		sid = m.ID
-		tok = t
 	} else {
-		var e error
-		tok, e = ctx.Store.ReadToken(sid)
-		if e != nil {
-			return e
-		}
 		if c.NoAnnotations {
 			if _, e := ctx.Store.SetDisableAnnotations(sid, true); e != nil {
 				return e
@@ -395,7 +400,7 @@ func (c *PutCmd) Run(ctx *Ctx) error {
 	if e != nil {
 		return e
 	}
-	u := store.URL(b, sid, preferredPutURLPath(added), tok)
+	u := store.URL(b, sid, preferredPutURLPath(added))
 	if c.JSON {
 		printJSON(map[string]string{"session": sid, "url": u})
 	} else {

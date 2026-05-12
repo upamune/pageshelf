@@ -22,7 +22,7 @@ The default workflow is intentionally low-friction for agents:
 pageshelf put report.html
 ```
 
-If no session is supplied, pageshelf creates one automatically and prints a tokenized `/a/<session>/index.html` URL. For sharing across the user's private network, run the server with Tailscale integration:
+If no session is supplied, pageshelf creates one automatically and prints a clean `/a/<session>/index.html` URL. For sharing across the user's private network, run the server with Tailscale integration:
 
 ```bash
 pageshelf serve --tailscale
@@ -53,10 +53,14 @@ Do not use pageshelf when:
 
 ## Quick Start
 
-### 1. Start the server locally
+### 1. Ensure a server is running
+
+Prefer reusing the existing Pageshelf server. Do **not** start a fresh `pageshelf serve` every time you publish an artifact.
+
+First check the expected endpoint:
 
 ```bash
-pageshelf serve
+curl -fsS http://127.0.0.1:8787/healthz >/dev/null || pageshelf serve
 ```
 
 Default bind:
@@ -64,6 +68,15 @@ Default bind:
 ```text
 127.0.0.1:8787
 ```
+
+For Tailscale sharing, check the tailnet endpoint before starting another server:
+
+```bash
+TSIP=$(tailscale ip -4 | head -1)
+curl -fsS "http://$TSIP:8787/healthz" >/dev/null || pageshelf serve --tailscale
+```
+
+If the server is already managed by systemd, prefer checking/restarting the service rather than spawning ad-hoc processes.
 
 ### 2. Publish one HTML file
 
@@ -75,7 +88,7 @@ Typical output:
 
 ```text
 session: 20260510-0945-artifact-ifw1wa
-url: http://127.0.0.1:8787/a/20260510-0945-artifact-ifw1wa/index.html?t=psr_...
+url: http://127.0.0.1:8787/a/20260510-0945-artifact-ifw1wa/index.html
 ```
 
 ### 3. Use Tailscale for private network sharing
@@ -227,7 +240,7 @@ pageshelf put --tailscale index.html
 
 ### Mobile-first review/annotation artifacts
 
-For plans, PR explainers, and annotated diffs, make the HTML feel like a plannotator-inspired review surface:
+For plans, PR explainers, and annotated diffs, make the HTML feel like a selection-first review surface:
 
 - single-column readable layout on phones
 - large tap targets for findings, checklist rows, and code/diff locations
@@ -291,9 +304,6 @@ Pageshelf is designed for private local/tailnet artifact serving, not public int
 
 Key protections:
 
-- tokenized read URLs
-- token hash stored in manifest
-- local token file stored separately
 - default localhost bind
 - explicit Tailscale bind
 - wildcard bind requires `--unsafe-public-bind`
@@ -325,11 +335,11 @@ child-src 'none'
 frame-src 'none'
 ```
 
-With `--no-annotations`, Pageshelf skips runtime injection and serves HTML with `script-src 'none'` and `connect-src 'none'`. Keep assets local and avoid remote trackers/CDNs. Tokenized URLs, Tailscale/local-first serving, path traversal checks, symlink rejection, no-store headers, and secret scanning still matter.
+With `--no-annotations`, Pageshelf skips runtime injection and serves HTML with `script-src 'none'` and `connect-src 'none'`. Keep assets local and avoid remote trackers/CDNs. Artifact URLs are capability-free; private serving depends on localhost/Tailscale binding, path traversal checks, symlink rejection, no-store headers, safe CSP, and secret scanning.
 
 ### Sensitive data rule
 
-Do not publish secrets, credentials, raw tokens, private keys, production `.env` files, or confidential dumps. Tokenized Tailscale URLs are convenient, not a replacement for data classification.
+Do not publish secrets, credentials, raw tokens, private keys, production `.env` files, or confidential dumps. Pageshelf URLs do not contain read tokens; local/Tailscale serving is not a replacement for data classification.
 
 ## HTML Authoring Guidance
 
@@ -359,28 +369,31 @@ For Telegram handoff, keep the chat reply short:
 
 ## Common Pitfalls
 
-1. **Forgetting the server endpoint in generated URLs.**
+1. **Starting a new server for every `put`.**
+   `put` only writes into the data directory and prints a URL; it does not require a fresh server. Check `/healthz` on the intended local/Tailscale endpoint first and reuse the running systemd/service process when available. Spawning ad-hoc servers leads to port drift (`8791`, `8792`, `8796`, ...), stale links, and confusion.
+
+2. **Forgetting the server endpoint in generated URLs.**
    If the server runs with `--tailscale`, generate URLs with `pageshelf put --tailscale ...` or `pageshelf url --tailscale ...`.
 
-2. **Expecting `/a/<session>/...` to work without a token.**
-   Artifact URLs require `?t=psr_...`.
+3. **Assuming the URL itself is secret.**
+   Artifact URLs are clean and capability-free. Rely on localhost/Tailscale/private bind assumptions and do not publish sensitive content.
 
-3. **Putting a directory with absolute asset links.**
+4. **Putting a directory with absolute asset links.**
    HTML should use relative paths like `./assets/diagram.svg`, not `/tmp/artifact/assets/diagram.svg`.
 
-4. **Treating `--interactive` as required.**
+5. **Treating `--interactive` as required.**
    It is deprecated/no-op. Publish normal HTML and design the artifact to be interactive by default when useful.
 
-5. **Publishing secrets because the server is “only Tailscale.”**
+6. **Publishing secrets because the server is “only Tailscale.”**
    Tailnet access is still access. Redact or summarize sensitive content first.
 
-6. **Binding to `0.0.0.0` out of habit.**
+7. **Binding to `0.0.0.0` out of habit.**
    Use `--tailscale` for private sharing. Only use `--unsafe-public-bind` when you understand the exposure.
 
-7. **Losing the session ID from auto-create output.**
+8. **Losing the session ID from auto-create output.**
    Use `--json` when an agent needs to parse and reuse the session ID.
 
-8. **Expecting pageshelf to host an app backend.**
+9. **Expecting pageshelf to host an app backend.**
    It serves static files. Interactive artifacts must run fully in the browser.
 
 ## Verification Checklist
@@ -388,9 +401,8 @@ For Telegram handoff, keep the chat reply short:
 After publishing an artifact:
 
 - [ ] `pageshelf serve` or `pageshelf serve --tailscale` is running.
-- [ ] The URL path uses `/a/<session>/<file>` and includes `?t=psr_...`.
+- [ ] The URL path uses clean `/a/<session>/<file>` form, with no token query.
 - [ ] The artifact opens successfully in a browser.
-- [ ] Wrong or missing token returns `401`.
 - [ ] Mobile review controls are reachable and readable.
 - [ ] Copy annotations is generic and copies locations plus comments for manual paste.
 - [ ] No secrets or raw credentials are present in the HTML or asset files.

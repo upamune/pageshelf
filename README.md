@@ -12,7 +12,7 @@ Pageshelf is a tiny, private, review-first artifact shelf for agent-generated HT
 [![MIT License](https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge)](LICENSE)
 
 - local-first Go CLI plus static web server
-- tokenized `/a/...` artifact URLs with hashed tokens in storage
+- clean `/a/...` artifact URLs for local/Tailscale private serving
 - default localhost bind, private Tailscale sharing, and guarded public binds
 - Markdown-to-HTML publishing, multi-file sessions, TTL metadata, and GC
 - default-on interactive HTML with an injected mobile-first review/annotation runtime
@@ -84,7 +84,7 @@ Typical output:
 
 ```text
 session: 20260510-0924-artifact-7k3p
-url: http://127.0.0.1:8787/a/20260510-0924-artifact-7k3p/index.html?t=psr_xxx
+url: http://127.0.0.1:8787/a/20260510-0924-artifact-7k3p/index.html
 ```
 
 ### Share on a private tailnet
@@ -144,7 +144,7 @@ pageshelf put --tailscale index.html assets/
 
 ### Review and annotation UX
 
-Pageshelf artifacts should be mobile-first review surfaces. For dense plans, diffs, and reports, prefer a plannotator-inspired flow:
+Pageshelf artifacts should be mobile-first review surfaces. For dense plans, diffs, and reports, prefer a selection-first review flow:
 
 - readable single-column layout on phones, with sticky section navigation where useful
 - tap/click targets for findings, checklist rows, and code/diff locations
@@ -189,7 +189,7 @@ A good agent handoff looks like this:
 
 ```text
 詳細HTML作った:
-http://example.tailnet.ts.net:8787/a/.../index.html?t=psr_xxx
+http://example.tailnet.ts.net:8787/a/.../index.html
 
 中身:
 - architecture diagram
@@ -244,7 +244,7 @@ Instead of making Hermes send a 300-line Markdown wall to Telegram, ask it to re
 
 ```text
 詳細HTML作った:
-http://example.tailnet.ts.net:8787/a/.../index.html?t=psr_xxx
+http://example.tailnet.ts.net:8787/a/.../index.html
 
 要点:
 - architecture and data flow are diagrammed
@@ -317,7 +317,7 @@ Run `pageshelf <command> --help` for command-specific flags.
 | Rich HTML artifacts | ✅ | ❌ | ✅ | ✅ |
 | Local-first storage | ✅ | ❌ | ❌ | ❌ |
 | Private tailnet sharing | ✅ | ❌ | ❌ | ⚠️ |
-| Tokenized artifact URLs | ✅ | ❌ | ❌ | ⚠️ |
+| Clean local/Tailscale artifact URLs | ✅ | ❌ | ❌ | ⚠️ |
 | Default-on secret scanning | ✅ | ❌ | ❌ | ❌ |
 | TTL metadata and GC | ✅ | ❌ | ❌ | ⚠️ |
 | Agent-oriented CLI workflow | ✅ | ⚠️ | ❌ | ❌ |
@@ -383,7 +383,7 @@ frame-src 'none'
 
 With `--no-annotations`, Pageshelf skips runtime injection and serves HTML with `script-src 'none'` and `connect-src 'none'`.
 
-Tokenized URLs, local/Tailscale-first serving, path traversal prevention, symlink rejection, `no-store`, and secret scanning remain in place. Avoid remote CDNs and trackers; keep assets local to the artifact session.
+Artifact URLs are capability-free. Local/Tailscale-first serving, guarded public binds, path traversal prevention, symlink rejection, `no-store`, CSP, and secret scanning remain in place. Avoid remote CDNs and trackers; keep assets local to the artifact session.
 
 ## Development
 

@@ -2,7 +2,6 @@ package server
 
 import (
 	"io"
-	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -10,9 +9,9 @@ import (
 	"github.com/serizawa/pageshelf/internal/store"
 )
 
-func TestArtifactAuthAndHeaders(t *testing.T) {
+func TestArtifactServingAndHeaders(t *testing.T) {
 	st, _ := store.New(t.TempDir())
-	m, tok, err := st.Create("", "artifact", false)
+	m, _, err := st.Create("", "artifact", false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -24,13 +23,7 @@ func TestArtifactAuthAndHeaders(t *testing.T) {
 	}
 	h := Server{Store: st}.Handler()
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/a/"+m.ID+"/index.html?t=bad", nil)
-	h.ServeHTTP(rr, req)
-	if rr.Code != http.StatusUnauthorized {
-		t.Fatalf("want 401 got %d", rr.Code)
-	}
-	rr = httptest.NewRecorder()
-	req = httptest.NewRequest("GET", "/a/"+m.ID+"/index.html?t="+tok, nil)
+	req := httptest.NewRequest("GET", "/a/"+m.ID+"/index.html", nil)
 	h.ServeHTTP(rr, req)
 	b, _ := io.ReadAll(rr.Body)
 	if rr.Code != 200 || !strings.Contains(string(b), "ok") {
@@ -58,7 +51,7 @@ func TestArtifactAuthAndHeaders(t *testing.T) {
 	if rr.Code != 200 || !strings.Contains(rr.Header().Get("Content-Type"), "text/javascript") {
 		t.Fatalf("bad runtime script response: code=%d content-type=%q", rr.Code, rr.Header().Get("Content-Type"))
 	}
-	for _, marker := range []string{"attachShadow", "pageshelf.annotation.v1", "Copy annotations", "Copy JSON", "Export JSON", "Resolve", ":host"} {
+	for _, marker := range []string{"attachShadow", "pageshelf.annotation.v1", "Copy notes", "Copy as JSON", "Download JSON", "Clear resolved", "Resolve", ":host"} {
 		if !strings.Contains(assetBody, marker) {
 			t.Fatalf("runtime script missing marker %q", marker)
 		}
@@ -85,13 +78,13 @@ func TestArtifactAuthAndHeaders(t *testing.T) {
 		t.Fatal(htmlCSP)
 	}
 	rr = httptest.NewRecorder()
-	req = httptest.NewRequest("HEAD", "/a/"+m.ID+"/index.html?t="+tok, nil)
+	req = httptest.NewRequest("HEAD", "/a/"+m.ID+"/index.html", nil)
 	h.ServeHTTP(rr, req)
 	if rr.Code != 200 || rr.Body.Len() != 0 || rr.Header().Get("Last-Modified") == "" {
 		t.Fatalf("bad HEAD response: code=%d body=%q last-modified=%q", rr.Code, rr.Body.String(), rr.Header().Get("Last-Modified"))
 	}
 	rr = httptest.NewRecorder()
-	req = httptest.NewRequest("GET", "/a/"+m.ID+"/plain.txt?t="+tok, nil)
+	req = httptest.NewRequest("GET", "/a/"+m.ID+"/plain.txt", nil)
 	h.ServeHTTP(rr, req)
 	b, _ = io.ReadAll(rr.Body)
 	if rr.Code != 200 || string(b) != "ok" {
@@ -131,7 +124,7 @@ func TestInjectAnnotationRuntime(t *testing.T) {
 
 func TestDisabledAnnotations(t *testing.T) {
 	st, _ := store.New(t.TempDir())
-	m, tok, err := st.CreateWithOptions(store.CreateOptions{Slug: "artifact", DisableAnnotations: true})
+	m, _, err := st.CreateWithOptions(store.CreateOptions{Slug: "artifact", DisableAnnotations: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -139,7 +132,7 @@ func TestDisabledAnnotations(t *testing.T) {
 		t.Fatal(err)
 	}
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/a/"+m.ID+"/index.html?t="+tok, nil)
+	req := httptest.NewRequest("GET", "/a/"+m.ID+"/index.html", nil)
 	Server{Store: st}.Handler().ServeHTTP(rr, req)
 	body := rr.Body.String()
 	if strings.Contains(body, "pageshelf-annotation-script") {

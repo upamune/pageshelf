@@ -552,13 +552,13 @@
           </picture>
         </div>
         <div class="floating-card code">&lt;/&gt;</div>
-        <div class="floating-card lock"><b>⌁</b> tokenized shelf</div>
+        <div class="floating-card lock"><b>⌁</b> private shelf</div>
       </div>
     </section>
 
     <section class="section" id="install">
       <h2>one command, tiny shelf.</h2>
-      <p class="section-lede">Start a local server, publish an HTML file, and hand back a tokenized URL. Use Tailscale when the artifact should be readable across your private network.</p>
+      <p class="section-lede">Start a local server, publish an HTML file, and hand back a clean URL. Use Tailscale when the artifact should be readable across your private network.</p>
       <div class="code-panel">
         <div class="code-header"><span>quick start</span><span class="dots"><i></i><i></i><i></i></span></div>
         <pre><code><span class="prompt">$</span> mise use -g github:upamune/pageshelf@latest
@@ -566,7 +566,7 @@
 <span class="prompt">$</span> pageshelf put --tailscale report.html
 
 <span class="muted-code">session:</span> 20260510-0924-artifact-7k3p
-<span class="muted-code">url:</span> <span class="orange">http://example.tailnet.ts.net:8787/a/.../report.html?t=psr_xxx</span></code></pre>
+<span class="muted-code">url:</span> <span class="orange">http://example.tailnet.ts.net:8787/a/.../report.html</span></code></pre>
       </div>
     </section>
 
@@ -582,12 +582,12 @@
         <article class="feature">
           <div class="icon">&lt;/&gt;</div>
           <h3>HTML artifacts</h3>
-          <p>Store reports, PR explainers, diagrams, annotated diffs, and plannotator-inspired review pages as real browser-readable files with Shadow DOM review UI, local annotations, and generic copy/JSON export workflows.</p>
+          <p>Store reports, PR explainers, diagrams, annotated diffs, and selection-first review pages as real browser-readable files with Shadow DOM review UI, local annotations, and generic copy/JSON export workflows.</p>
         </article>
         <article class="feature">
           <div class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 11V8a5 5 0 0 1 10 0v3"/><rect x="5" y="11" width="14" height="9" rx="3"/><path d="M12 15v2"/></svg></div>
           <h3>Private sharing</h3>
-          <p>Localhost by default, Tailscale when needed, and tokenized URLs so the shelf does not become a public hosting accident.</p>
+          <p>Localhost by default, Tailscale when needed, and guarded public binds so the shelf does not become a public hosting accident.</p>
         </article>
       </div>
     </section>

@@ -23,7 +23,7 @@ func (s Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc(annotationRuntimePath, serveAnnotationRuntimeAsset)
 	mux.HandleFunc("/a/", s.artifact)
-	health := func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) }
+	health := func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) }
 	mux.HandleFunc("/-/healthz", health)
 	mux.HandleFunc("/healthz", health)
 	return security(mux)
@@ -57,15 +57,6 @@ func (s Server) artifact(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id, path := parts[0], parts[1]
-	m, err := s.Store.Load(id)
-	if err != nil {
-		http.NotFound(w, r)
-		return
-	}
-	if !store.CheckToken(r.URL.Query().Get("t"), m.ReadTokenHash) {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
-		return
-	}
 	f, meta, m, err := s.Store.Open(id, path)
 	if err != nil {
 		http.NotFound(w, r)
