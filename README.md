@@ -94,6 +94,12 @@ pageshelf serve --tailscale
 pageshelf put --tailscale index.html
 ```
 
+When an artifact intentionally embeds remote images, allow those image origins on the server:
+
+```bash
+pageshelf serve --tailscale --allow-image-src https://i.gyazo.com
+```
+
 With `--tailscale`, Pageshelf prefers MagicDNS when available and falls back to the raw Tailscale IP.
 
 ## Working with artifacts
@@ -383,7 +389,9 @@ frame-src 'none'
 
 With `--no-annotations`, Pageshelf skips runtime injection and serves HTML with `script-src 'none'` and `connect-src 'none'`.
 
-Artifact URLs are capability-free. Local/Tailscale-first serving, guarded public binds, path traversal prevention, symlink rejection, `no-store`, CSP, and secret scanning remain in place. Avoid remote CDNs and trackers; keep assets local to the artifact session.
+Use `pageshelf serve --allow-image-src <origin>` to append explicit remote image origins to `img-src`, for example `https://i.gyazo.com`. Values must be origins; paths, query strings, fragments, wildcards, whitespace, and semicolons are rejected. This only relaxes image loading. `connect-src 'none'` remains unchanged.
+
+Artifact URLs are capability-free. Local/Tailscale-first serving, guarded public binds, path traversal prevention, symlink rejection, `no-store`, CSP, and secret scanning remain in place. Avoid remote CDNs and trackers unless explicitly allowed with `--allow-image-src`.
 
 ## Development
 

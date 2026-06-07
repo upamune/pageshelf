@@ -8,6 +8,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -41,6 +42,7 @@ type (
 		Host             string `default:"127.0.0.1"`
 		Port             int    `default:"8787"`
 		UnsafePublicBind bool
+		AllowImageSrc    []string `name:"allow-image-src" help:"Additional CSP img-src source to allow for artifact images. Repeat for multiple sources, e.g. https://i.gyazo.com."`
 	}
 )
 
@@ -227,6 +229,43 @@ func healthCheck(baseURL string) bool {
 	return resp.StatusCode == http.StatusOK
 }
 
+func validateCSPSource(src string) (string, error) {
+	src = strings.TrimSpace(src)
+	if src == "" {
+		return "", fmt.Errorf("empty --allow-image-src value")
+	}
+	if strings.ContainsAny(src, " 	\r\n;") {
+		return "", fmt.Errorf("invalid --allow-image-src %q: CSP sources must not contain whitespace or semicolons", src)
+	}
+	u, err := url.Parse(src)
+	if err != nil || u.Scheme == "" || u.Host == "" || (u.Path != "" && u.Path != "/") || u.RawQuery != "" || u.Fragment != "" {
+		return "", fmt.Errorf("invalid --allow-image-src %q: use an origin like https://i.gyazo.com", src)
+	}
+	if u.Scheme != "https" && u.Scheme != "http" {
+		return "", fmt.Errorf("invalid --allow-image-src %q: only http and https origins are supported", src)
+	}
+	return strings.TrimRight(src, "/"), nil
+}
+
+func validateCSPSources(srcs []string) ([]string, error) {
+	if len(srcs) == 0 {
+		return nil, nil
+	}
+	out := make([]string, 0, len(srcs))
+	seen := make(map[string]bool, len(srcs))
+	for _, src := range srcs {
+		valid, err := validateCSPSource(src)
+		if err != nil {
+			return nil, err
+		}
+		if !seen[valid] {
+			seen[valid] = true
+			out = append(out, valid)
+		}
+	}
+	return out, nil
+}
+
 func (c *ServeCmd) Run(ctx *Ctx) error {
 	h := c.Host
 	if c.Tailscale {
@@ -245,7 +284,11 @@ func (c *ServeCmd) Run(ctx *Ctx) error {
 		fmt.Printf("pageshelf already serving at %s\n", url)
 		return nil
 	}
-	return server.ListenAndServe(addr, ctx.Store)
+	allowImageSrc, err := validateCSPSources(c.AllowImageSrc)
+	if err != nil {
+		return err
+	}
+	return server.ListenAndServe(addr, ctx.Store, allowImageSrc)
 }
 
 func (c *SessionCreateCmd) Run(ctx *Ctx) error {

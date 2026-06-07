@@ -62,6 +62,21 @@ func TestHealthCheckReturnsFalseOnConnectionFailure(t *testing.T) {
 	}
 }
 
+func TestValidateCSPSources(t *testing.T) {
+	got, err := validateCSPSources([]string{"https://i.gyazo.com/", "https://i.gyazo.com"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0] != "https://i.gyazo.com" {
+		t.Fatalf("validateCSPSources() = %#v", got)
+	}
+	for _, src := range []string{"https://i.gyazo.com/path", "https://i.gyazo.com; connect-src *", "data:", "*.example.com"} {
+		if _, err := validateCSPSource(src); err == nil {
+			t.Fatalf("validateCSPSource(%q) succeeded, want error", src)
+		}
+	}
+}
+
 func TestPreparePutContentRendersMarkdownByDefault(t *testing.T) {
 	name, data, err := preparePutContent(strings.NewReader("# Demo\n\n- one\n- two\n"), "README.md", false)
 	if err != nil {
