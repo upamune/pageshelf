@@ -95,6 +95,27 @@ func TestArtifactServingAndHeaders(t *testing.T) {
 	}
 }
 
+func TestAllowImageSrcCSP(t *testing.T) {
+	st, _ := store.New(t.TempDir())
+	m, _, err := st.Create("", "artifact", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = st.Put(m.ID, "index.html", strings.NewReader("<!doctype html><html><body><img src=\"https://i.gyazo.com/example.jpg\"></body></html>"), false); err != nil {
+		t.Fatal(err)
+	}
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/a/"+m.ID+"/index.html", nil)
+	Server{Store: st, AllowImageSrc: []string{"https://i.gyazo.com"}}.Handler().ServeHTTP(rr, req)
+	csp := rr.Header().Get("Content-Security-Policy")
+	if !strings.Contains(csp, "img-src 'self' data: blob: https://i.gyazo.com;") {
+		t.Fatalf("unexpected CSP: %q", csp)
+	}
+	if !strings.Contains(csp, "connect-src 'none'") {
+		t.Fatalf("connect-src should stay locked down: %q", csp)
+	}
+}
+
 func TestInjectAnnotationRuntime(t *testing.T) {
 	in := []byte("<!doctype html><html><body><h1>Hi</h1></body></html>")
 	out := string(injectAnnotationRuntime(in))

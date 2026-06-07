@@ -118,6 +118,7 @@ pageshelf url --tailscale 20260510-0945-artifact-ifw1wa
 ```bash
 pageshelf serve
 pageshelf serve --tailscale
+pageshelf serve --tailscale --allow-image-src https://i.gyazo.com
 pageshelf serve --host 127.0.0.1 --port 8787
 pageshelf serve --host 0.0.0.0 --unsafe-public-bind
 ```
@@ -126,6 +127,7 @@ Behavior:
 
 - Defaults to `127.0.0.1:8787`.
 - `--tailscale` binds to a detected `100.64.0.0/10` Tailscale address.
+- `--allow-image-src <origin>` appends explicit image origins to the served artifact CSP, for example `--allow-image-src https://i.gyazo.com`. Repeat the flag for multiple origins.
 - Public wildcard binds such as `0.0.0.0` and `::` require `--unsafe-public-bind`.
 - Server has read/write/header timeouts and graceful shutdown.
 
@@ -335,7 +337,7 @@ child-src 'none'
 frame-src 'none'
 ```
 
-With `--no-annotations`, Pageshelf skips runtime injection and serves HTML with `script-src 'none'` and `connect-src 'none'`. Keep assets local and avoid remote trackers/CDNs. Artifact URLs are capability-free; private serving depends on localhost/Tailscale binding, path traversal checks, symlink rejection, no-store headers, safe CSP, and secret scanning.
+With `--no-annotations`, Pageshelf skips runtime injection and serves HTML with `script-src 'none'` and `connect-src 'none'`. Use `pageshelf serve --allow-image-src <origin>` to append explicit remote image origins to `img-src`, for example `https://i.gyazo.com`. Values must be origins; paths, query strings, fragments, wildcards, whitespace, and semicolons are rejected. This only relaxes image loading; `connect-src 'none'` remains unchanged. Artifact URLs are capability-free; private serving depends on localhost/Tailscale binding, path traversal checks, symlink rejection, no-store headers, safe CSP, and secret scanning.
 
 ### Sensitive data rule
 

@@ -16,7 +16,10 @@ import (
 )
 
 // Server serves Pageshelf artifacts over HTTP.
-type Server struct{ Store *store.Store }
+type Server struct {
+	Store         *store.Store
+	AllowImageSrc []string
+}
 
 // Handler returns the HTTP handler for serving artifacts and health checks.
 func (s Server) Handler() http.Handler {
@@ -43,11 +46,16 @@ func security(next http.Handler) http.Handler {
 	})
 }
 
-func csp(disableAnnotations bool) string {
-	if disableAnnotations {
-		return "default-src 'none'; script-src 'none'; style-src 'self'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'; worker-src 'none'; child-src 'none'; frame-src 'none'"
+func csp(disableAnnotations bool, allowImageSrc []string) string {
+	imgSrc := "img-src 'self' data: blob:"
+	if len(allowImageSrc) > 0 {
+		imgSrc += " " + strings.Join(allowImageSrc, " ")
 	}
-	return "default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'; worker-src 'none'; child-src 'none'; frame-src 'none'"
+	imgSrc += ";"
+	if disableAnnotations {
+		return "default-src 'none'; script-src 'none'; style-src 'self'; " + imgSrc + " font-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'; worker-src 'none'; child-src 'none'; frame-src 'none'"
+	}
+	return "default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; " + imgSrc + " font-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'; worker-src 'none'; child-src 'none'; frame-src 'none'"
 }
 
 func (s Server) artifact(w http.ResponseWriter, r *http.Request) {
@@ -63,7 +71,7 @@ func (s Server) artifact(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer func() { _ = f.Close() }()
-	w.Header().Set("Content-Security-Policy", csp(m.DisableAnnotations))
+	w.Header().Set("Content-Security-Policy", csp(m.DisableAnnotations, s.AllowImageSrc))
 	w.Header().Set("Content-Type", meta.MIME)
 	if isHTML(meta.MIME, meta.Path) {
 		b, err := io.ReadAll(f)
@@ -88,11 +96,11 @@ func (s Server) artifact(w http.ResponseWriter, r *http.Request) {
 }
 
 // ListenAndServe starts the HTTP server and shuts it down on interrupt signals.
-func ListenAndServe(addr string, st *store.Store) error {
+func ListenAndServe(addr string, st *store.Store, allowImageSrc []string) error {
 	log.Printf("pageshelf serving on http://%s", addr)
 	srv := &http.Server{
 		Addr:              addr,
-		Handler:           Server{Store: st}.Handler(),
+		Handler:           Server{Store: st, AllowImageSrc: allowImageSrc}.Handler(),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       30 * time.Second,
 		WriteTimeout:      30 * time.Second,
