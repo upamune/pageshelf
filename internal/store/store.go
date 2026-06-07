@@ -20,7 +20,7 @@ import (
 
 // Version is the Pageshelf application version reported by the CLI.
 // Release builds set it from the git tag via GoReleaser ldflags.
-var Version = "0.2.3"
+var Version = "0.2.4"
 
 const (
 	// MaxFileSize is the maximum stored artifact size in bytes.
