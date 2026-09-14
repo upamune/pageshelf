@@ -1,5 +1,7 @@
 # Changelog
 
+## [v0.2.5](https://github.com/upamune/pageshelf/compare/v0.2.4...v0.2.5) - 2026-09-14
+
 ## [v0.2.4](https://github.com/upamune/pageshelf/compare/v0.2.3...v0.2.4) - 2026-06-07
 - feat: allow additional image CSP sources by @upamune in https://github.com/upamune/pageshelf/pull/6
 
